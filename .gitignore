@@ -1,0 +1,10 @@
+node_modules
+dist
+*.local
+.DS_Store
+*.tsbuildinfo
+.idea
+.env
+.env.*
+.mcp.json
+*.local.json

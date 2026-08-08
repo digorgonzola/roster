@@ -1,0 +1,74 @@
+/* ============================================================
+   Print roster styling — used both in the on-screen preview
+   (.print-preview .print-root) and in the actual printout
+   (.print-only .print-root under @media print).
+   Designed to read correctly in grayscale: black on white,
+   strong borders, name + initials + fill pattern per person.
+   ============================================================ */
+
+.print-root { color: #000; background: #fff; font-family: system-ui, 'Segoe UI', Roboto, sans-serif; }
+
+.print-header { text-align: center; margin-bottom: 10px; }
+.print-header h1 { font-size: 20px; letter-spacing: .01em; }
+.print-week { margin: 2px 0 0; font-size: 13px; color: #333; }
+.print-empty { text-align: center; color: #444; padding: 20px; }
+
+/* ---- Grid layout ---- */
+.print-grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.print-grid th, .print-grid td { border: 1.4px solid #000; padding: 5px 4px; text-align: center; vertical-align: top; font-size: 12px; }
+.print-grid thead th { background: #e9e9e9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.print-grid .corner { width: 20%; text-align: left; }
+.print-grid .pg-date { font-weight: 400; color: #333; font-size: 11px; }
+.print-grid .pg-chore { text-align: left; font-weight: 700; background: #f4f4f4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.print-grid .pg-time { display: block; font-weight: 400; font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: .04em; margin-top: 1px; }
+.print-grid td.pg-off { background: repeating-linear-gradient(45deg, #fff 0 6px, #f2f2f2 6px 7px); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+.pg-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.pg-tick { width: 15px; height: 15px; border: 1.5px solid #000; border-radius: 3px; }
+.pg-name { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.15; }
+.pg-name.none { color: #666; }
+.pg-swatch { width: 11px; height: 11px; border: 1px solid #000; border-radius: 2px; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* ---- Per-person cards ---- */
+.print-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.print-card { border: 1.4px solid #000; border-radius: 8px; padding: 8px 10px; break-inside: avoid; }
+.pc-head { display: flex; align-items: center; gap: 8px; border-bottom: 1.4px solid #000; padding-bottom: 6px; margin-bottom: 6px; }
+.pc-swatch { width: 18px; height: 18px; border: 1.2px solid #000; border-radius: 3px; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pc-name { font-weight: 700; font-size: 15px; flex: 1; }
+.pc-initials { font-size: 12px; border: 1px solid #000; border-radius: 4px; padding: 1px 5px; }
+.print-card.unassigned .pc-name { font-style: italic; }
+
+.pc-list { list-style: none; margin: 0; padding: 0; }
+.pc-list li { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; border-bottom: 1px dotted #bbb; font-size: 13px; }
+.pc-list li:last-child { border-bottom: 0; }
+.pc-tick { width: 13px; height: 13px; border: 1.4px solid #000; border-radius: 3px; flex: 0 0 auto; position: relative; top: 2px; }
+.pc-day { font-weight: 700; width: 34px; flex: 0 0 auto; }
+.pc-time { width: 62px; flex: 0 0 auto; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #333; }
+.pc-chore { flex: 1; }
+.pc-note { color: #555; font-style: italic; font-size: 11px; }
+
+/* ---- Legend ---- */
+.print-legend { margin-top: 12px; padding-top: 8px; border-top: 1px solid #000; display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; align-items: center; }
+.pl-title { font-weight: 700; }
+.pl-item { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ============================================================
+   Actual printing
+   ============================================================ */
+@page { size: A4; margin: 12mm; }
+
+@media print {
+  html, body { background: #fff; }
+  .no-print { display: none !important; }
+  .app { max-width: none; margin: 0; padding: 0; }
+  .print-only { display: block !important; }
+
+  /* Ensure colour swatches & pattern fills actually render on paper */
+  .swatch, .pc-swatch, .pg-swatch,
+  .print-grid thead th, .print-grid .pg-chore, .print-grid td.pg-off {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  .print-card { break-inside: avoid; }
+  .print-grid tr { break-inside: avoid; }
+}

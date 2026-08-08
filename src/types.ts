@@ -1,0 +1,93 @@
+// ---- Data model -----------------------------------------------------------
+
+/** Days are 0..6 == Monday..Sunday throughout the app (see week.ts). */
+export type DayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+export type Effort = 'light' | 'medium' | 'heavy'
+
+/** When in the day a chore happens, so a day reads morning → evening. */
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'anytime'
+
+export interface Person {
+  id: number
+  name: string
+  /** On-screen colour only. The print view relies on name + initials + pattern. */
+  color: string
+}
+
+/** Recurring on one or more weekdays. */
+export interface WeeklySchedule {
+  kind: 'weekly'
+  days: DayIndex[]
+  /** How often, in weeks: 1 = weekly (default), 2 = fortnightly, 3, 4 = ~monthly. */
+  intervalWeeks?: number
+  /** Week-number phase: the chore occurs when (weekNumber - anchorWeek) % intervalWeeks === 0. */
+  anchorWeek?: number
+}
+
+/** A single irregular chore on a specific calendar date. */
+export interface OneOffSchedule {
+  kind: 'oneoff'
+  date: string // 'YYYY-MM-DD'
+}
+
+/** Which occurrence of a weekday within a month. 'last' = the final one. */
+export type MonthlyNth = 1 | 2 | 3 | 4 | 'last'
+
+/** Calendar-monthly, e.g. the first Saturday of each month. */
+export interface MonthlySchedule {
+  kind: 'monthly'
+  weekday: DayIndex
+  nth: MonthlyNth
+}
+
+export type Schedule = WeeklySchedule | OneOffSchedule | MonthlySchedule
+
+/** One fixed person does it. */
+export interface ManualAssignment {
+  mode: 'manual'
+  personId: number | null
+}
+
+/** Rotates one person forward across the listed people, each day or each week. */
+export interface RotateAssignment {
+  mode: 'rotate'
+  /** 'weekly' = same person all week; 'daily' = advances every day. Missing = weekly. */
+  period?: 'daily' | 'weekly'
+  personIds: number[]
+}
+
+/** A fixed person per weekday, e.g. Tue → Jim, Wed → Bob. */
+export interface ByDayAssignment {
+  mode: 'byday'
+  /** Keyed by DayIndex (0=Mon..6=Sun). Missing / null = unassigned that day. */
+  byDay: Partial<Record<DayIndex, number | null>>
+}
+
+export type Assignment = ManualAssignment | RotateAssignment | ByDayAssignment
+
+export interface Chore {
+  id: number
+  name: string
+  notes?: string
+  effort?: Effort
+  /** Time slot for chronological ordering. Missing = 'anytime'. */
+  timeOfDay?: TimeOfDay
+  schedule: Schedule
+  assignment: Assignment
+}
+
+export interface AppState {
+  people: Person[]
+  chores: Chore[]
+  /** 0 = week starts Sunday, 1 = week starts Monday. */
+  weekStartsOn: 0 | 1
+}
+
+/** A single expanded occurrence of a chore within a given week. */
+export interface WeekEntry {
+  chore: Chore
+  dayIndex: DayIndex
+  date: string // 'YYYY-MM-DD'
+  assignee: Person | null
+}
