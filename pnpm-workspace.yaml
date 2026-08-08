@@ -1,0 +1,52 @@
+# pnpm configuration. pnpm 10 reads settings from this file.
+# This is a single-package repo. No `packages` list is needed.
+# This file exists for the supply-chain security settings below.
+
+# --- Supply-chain security ---
+
+# Never run lifecycle scripts (preinstall/install/postinstall) of dependencies.
+# pnpm 10 blocks them by default. An explicit empty allowlist makes the policy
+# auditable and intentional. esbuild and vite work without scripts because
+# their native binaries ship as platform-specific optional dependencies.
+onlyBuiltDependencies: []
+
+# Dependencies that declare build scripts, reviewed and denied. esbuild's
+# postinstall only validates its binary. The binary itself comes from the
+# @esbuild/* platform-specific optional dependency, so the script is not
+# needed.
+ignoredBuiltDependencies:
+  - esbuild
+
+# Fail the install (instead of a warning) if a dependency would run a
+# build script that is not on the allowlist above.
+strictDepBuilds: true
+
+# Refuse to install a version published to the registry less than 7 days ago.
+# Malware pushed to a hijacked package is usually detected and unpublished
+# within days. This window keeps poisoned releases off this machine.
+minimumReleaseAge: 10080 # minutes = 7 days
+
+# Always save exact versions (no ^ or ~ ranges) for new dependencies.
+savePrefix: ''
+
+# Before `pnpm run` or `pnpm exec`, verify that node_modules matches the
+# lockfile. This prevents runs against tampered or stale dependencies.
+verifyDepsBeforeRun: install
+
+# Verify package integrity checksums against the content-addressable store.
+verifyStoreIntegrity: true
+
+# Enforce the `engines` field in package.json.
+engineStrict: true
+
+# Do not hoist dependencies into the root of node_modules. This removes
+# phantom dependencies: packages can only require what they declare.
+hoistPattern: []
+
+# Force patched versions of vulnerable transitive dependencies.
+# nanoid <3.3.17: GHSA-2v37-7h3g-55p8 (via vite > postcss).
+overrides:
+  'nanoid@<3.3.17': '>=3.3.17'
+
+# Note for CI: run `pnpm install --frozen-lockfile` so installs fail when
+# the lockfile does not match package.json.
