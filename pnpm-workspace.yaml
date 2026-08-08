@@ -26,6 +26,25 @@ strictDepBuilds: true
 # within days. This window keeps poisoned releases off this machine.
 minimumReleaseAge: 10080 # minutes = 7 days
 
+# Fail resolution when no version in the requested range satisfies
+# minimumReleaseAge. Do not fall back to a non-compliant version silently.
+minimumReleaseAgeStrict: true
+
+# Refuse a version whose trust level is lower than an earlier release.
+# Example: a package that had provenance attestation loses it. That pattern
+# matches an account takeover, so the install fails.
+trustPolicy: no-downgrade
+
+# Re-verify minimumReleaseAge and trustPolicy on every install, even for
+# entries that are already in the lockfile. false is the default. It is
+# explicit here because true would skip the verification pass.
+trustLockfile: false
+
+# Only direct dependencies may resolve from exotic sources such as git
+# repositories or tarball URLs. All transitive dependencies must come from
+# the registry. true is the default. It is explicit here for auditability.
+blockExoticSubdeps: true
+
 # Always save exact versions (no ^ or ~ ranges) for new dependencies.
 savePrefix: ''
 
