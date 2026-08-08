@@ -82,7 +82,7 @@ jobs:
           # here as workflows grow.
           required-checks: |
             Type Check & Build
-          # Absent-after-grace means not-applicable. Set above the action's
-          # 90s default to absorb GitHub's queue latency before ci.yml
+          # Absent-after-grace means not-applicable. Matches the action's
+          # 90s default; absorbs GitHub's queue latency before ci.yml
           # registers its check-run on the head SHA.
-          grace-seconds: "150"
+          grace-seconds: "90"
