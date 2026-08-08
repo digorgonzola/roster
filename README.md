@@ -8,8 +8,8 @@ roster for the fridge.
 ## Run it
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open the printed local URL (usually http://localhost:5173).
@@ -17,9 +17,16 @@ Open the printed local URL (usually http://localhost:5173).
 Build a static copy:
 
 ```bash
-npm run build      # outputs to dist/
-npm run preview    # serve the built copy
+pnpm build      # outputs to dist/
+pnpm preview    # serve the built copy
 ```
+
+This repo uses **pnpm** (pinned via the `packageManager` field; `corepack enable`
+gets you the right version). Supply-chain hardening lives in
+[pnpm-workspace.yaml](pnpm-workspace.yaml): dependency lifecycle scripts are
+blocked, new releases must be at least 7 days old before they install, versions
+are pinned exactly, and `node_modules` is verified against the lockfile before
+every run. In CI, install with `pnpm install --frozen-lockfile`.
 
 ## Using it
 
