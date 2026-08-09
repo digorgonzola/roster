@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppState, Chore, DayIndex, Person } from './types'
 import { load, save, exportJson, importJson, clearStored, seedState } from './storage'
-import { addDays, parseYmd, startOfWeek, toDayIndex } from './week'
+import { newId } from './ids'
+import { applyOp, type Op } from './ops'
+import { addDays, startOfWeek, toDayIndex } from './week'
 import { Nav, type Page } from './components/Nav'
 import { Dashboard, type DashboardView } from './components/Dashboard'
 import { ChoresPage, type ChoreSelection } from './components/ChoresPage'
@@ -12,10 +14,6 @@ import { AssignSheet, type AssignChoice, type AssignTarget } from './components/
 import { MyDay } from './components/MyDay'
 import { MobileWeek } from './components/MobileWeek'
 import { MobileTabs, type MobileTab } from './components/MobileTabs'
-
-function nextId(items: { id: number }[]): number {
-  return items.reduce((max, i) => Math.max(max, i.id), 0) + 1
-}
 
 /** Below this width the desktop views fall back to the mobile day list. */
 function useIsMobile(): boolean {
@@ -35,11 +33,11 @@ export default function App() {
   const [page, setPage] = useState<Page>('week')
   const [mobileTab, setMobileTab] = useState<MobileTab>('today')
   const [dashboardView, setDashboardView] = useState<DashboardView>('grid')
-  const [personFilter, setPersonFilter] = useState<number | null>(null)
+  const [personFilter, setPersonFilter] = useState<string | null>(null)
   const [choreSelection, setChoreSelection] = useState<ChoreSelection>(null)
   const [selectedDay, setSelectedDay] = useState<DayIndex>(() => toDayIndex(new Date()))
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null)
-  const [myDayPersonId, setMyDayPersonId] = useState<number | null>(null)
+  const [myDayPersonId, setMyDayPersonId] = useState<string | null>(null)
   const [printLayout, setPrintLayout] = useState<PrintLayout>('grid')
   const [printOptions, setPrintOptions] = useState<PrintOptions>({
     tickBoxes: true,
@@ -57,75 +55,40 @@ export default function App() {
     [anchor, state.weekStartsOn],
   )
 
+  /**
+   * Single write path: every mutation is an Op through the shared reducer.
+   * The sync layer (when sharing lands) forwards the same ops to the server.
+   */
+  const dispatch = (op: Op) => setState((s) => applyOp(s, op))
+
   // ---- People ----
   const addPerson = (name: string, color: string) =>
-    setState((s) => ({ ...s, people: [...s.people, { id: nextId(s.people), name, color }] }))
+    dispatch({ t: 'addPerson', person: { id: newId(), name, color } })
 
-  const updatePerson = (person: Person) =>
-    setState((s) => ({ ...s, people: s.people.map((p) => (p.id === person.id ? person : p)) }))
+  const updatePerson = (person: Person) => dispatch({ t: 'updatePerson', person })
 
-  const deletePerson = (id: number) =>
-    setState((s) => ({
-      ...s,
-      people: s.people.filter((p) => p.id !== id),
-      chores: s.chores.map((c) => pruneAssignment(c, id)),
-    }))
+  const deletePerson = (id: string) => dispatch({ t: 'deletePerson', id })
 
   // ---- Chores ----
   const saveChore = (chore: Chore) =>
-    setState((s) => {
-      if (chore.id === 0) {
-        return { ...s, chores: [...s.chores, { ...chore, id: nextId(s.chores) }] }
-      }
-      return { ...s, chores: s.chores.map((c) => (c.id === chore.id ? chore : c)) }
-    })
+    dispatch({ t: 'saveChore', chore: chore.id === '' ? { ...chore, id: newId() } : chore })
 
-  const deleteChore = (id: number) =>
-    setState((s) => {
-      const done: AppState['done'] = {}
-      for (const [date, ids] of Object.entries(s.done)) {
-        const kept = ids.filter((x) => x !== id)
-        if (kept.length) done[date] = kept
-      }
-      return { ...s, chores: s.chores.filter((c) => c.id !== id), done }
-    })
+  const deleteChore = (id: string) => dispatch({ t: 'deleteChore', id })
 
   // ---- Completion (per chore per date; history, never rewritten) ----
-  const toggleDone = (date: string, choreId: number) =>
-    setState((s) => {
-      const current = s.done[date] ?? []
-      const next = current.includes(choreId)
-        ? current.filter((x) => x !== choreId)
-        : [...current, choreId]
-      const done = { ...s.done }
-      if (next.length) done[date] = next
-      else delete done[date]
-      return { ...s, done }
-    })
+  const toggleDone = (date: string, choreId: string) =>
+    dispatch({ t: 'setDone', date, choreId, done: !(state.done[date] ?? []).includes(choreId) })
 
   // ---- Assigning (writes to the chore, not the occurrence) ----
   const assign = (target: AssignTarget, choice: AssignChoice) => {
-    setState((s) => ({
-      ...s,
-      chores: s.chores.map((c) => {
-        if (c.id !== target.choreId) return c
-        if (choice === 'rotate') {
-          return { ...c, assignment: { mode: 'rotate', period: 'weekly', personIds: s.people.map((p) => p.id) } }
-        }
-        if (c.assignment.mode === 'byday') {
-          const day = toDayIndex(parseYmd(target.date))
-          return { ...c, assignment: { mode: 'byday', byDay: { ...c.assignment.byDay, [day]: choice } } }
-        }
-        return { ...c, assignment: { mode: 'manual', personId: choice } }
-      }),
-    }))
+    dispatch({ t: 'assign', choreId: target.choreId, date: target.date, choice })
     setAssignTarget(null)
   }
 
   // ---- Data ----
   const doImport = async (file: File) => {
     try {
-      setState(await importJson(file))
+      dispatch({ t: 'replaceState', state: await importJson(file) })
       setImportError('')
     } catch (e) {
       setImportError((e as Error).message)
@@ -135,7 +98,7 @@ export default function App() {
   const resetAll = () => {
     if (confirm('Reset the roster to the starting example? This clears your saved data.')) {
       clearStored()
-      setState(seedState())
+      dispatch({ t: 'replaceState', state: seedState() })
     }
   }
 
@@ -270,23 +233,4 @@ export default function App() {
       </div>
     </div>
   )
-}
-
-function pruneAssignment(c: Chore, removedId: number): Chore {
-  const a = c.assignment
-  if (a.mode === 'manual') {
-    return a.personId === removedId ? { ...c, assignment: { mode: 'manual', personId: null } } : c
-  }
-  if (a.mode === 'byday') {
-    const byDay = { ...a.byDay }
-    for (const k of Object.keys(byDay)) {
-      const d = Number(k) as keyof typeof byDay
-      if (byDay[d] === removedId) byDay[d] = null
-    }
-    return { ...c, assignment: { mode: 'byday', byDay } }
-  }
-  return {
-    ...c,
-    assignment: { ...a, personIds: a.personIds.filter((id) => id !== removedId) },
-  }
 }

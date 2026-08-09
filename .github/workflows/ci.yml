@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   check:
-    name: Type Check & Build
+    name: Type Check, Test & Build
     runs-on: ubuntu-latest
     # Skipped for drafts; required-checks.yml fails its gate while the PR is a
     # draft so this skip cannot be laundered into a green required status.
@@ -53,6 +53,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm run test
 
       # tsc -b (type check) then vite build.
       - name: Type check & build

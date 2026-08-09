@@ -8,8 +8,13 @@ import { TIME_SLOTS } from '../timeofday'
 import { assigneeTag, choreRuleSummary, needsPerson } from '../labels'
 import { Avatar } from './Avatar'
 
-/** null = nothing selected, 'new' = drafting a new chore. */
-export type ChoreSelection = number | 'new' | null
+/** null = nothing selected, 'new' = drafting a new chore, else a chore id. */
+export type ChoreSelection = string | null
+
+/** The reserved 'new' selection is never a real chore id (ids come from ids.ts). */
+function selectedChoreId(sel: ChoreSelection): string | null {
+  return sel !== null && sel !== 'new' ? sel : null
+}
 
 interface Props {
   chores: Chore[]
@@ -18,7 +23,7 @@ interface Props {
   selection: ChoreSelection
   onSelect: (sel: ChoreSelection) => void
   onSave: (chore: Chore) => void
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
 }
 
 interface Draft {
@@ -34,10 +39,10 @@ interface Draft {
   monthlyWeekday: DayIndex
   date: string
   mode: 'manual' | 'rotate' | 'byday'
-  manualPersonId: number | null
-  rotateIds: number[]
+  manualPersonId: string | null
+  rotateIds: string[]
   rotatePeriod: 'daily' | 'weekly'
-  byDay: Partial<Record<DayIndex, number | null>>
+  byDay: Partial<Record<DayIndex, string | null>>
 }
 
 const INTERVALS: { weeks: number; label: string }[] = [
@@ -97,14 +102,14 @@ function draftFromChore(c: Chore, people: Person[]): Draft {
   }
 }
 
-function buildChore(draft: Draft, id: number): Chore {
+function buildChore(draft: Draft, id: string): Chore {
   let assignment: Chore['assignment']
   if (draft.mode === 'manual') {
     assignment = { mode: 'manual', personId: draft.manualPersonId }
   } else if (draft.mode === 'rotate') {
     assignment = { mode: 'rotate', period: draft.rotatePeriod, personIds: draft.rotateIds }
   } else {
-    const byDay: Partial<Record<DayIndex, number | null>> = {}
+    const byDay: Partial<Record<DayIndex, string | null>> = {}
     for (const d of draft.days) byDay[d] = draft.byDay[d] ?? null
     assignment = { mode: 'byday', byDay }
   }
@@ -140,9 +145,10 @@ export function ChoresPage({ chores, people, weekStart, selection, onSelect, onS
 
   useEffect(() => {
     setError('')
+    const editingId = selectedChoreId(selection)
     if (selection === 'new') setDraft(emptyDraft(people))
-    else if (typeof selection === 'number') {
-      const c = chores.find((x) => x.id === selection)
+    else if (editingId !== null) {
+      const c = chores.find((x) => x.id === editingId)
       setDraft(c ? draftFromChore(c, people) : null)
     } else setDraft(null)
     // Rebuild the draft only when the selected chore changes, not on every list edit.
@@ -151,7 +157,8 @@ export function ChoresPage({ chores, people, weekStart, selection, onSelect, onS
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => (d ? { ...d, [k]: v } : d))
 
-  const editingChore = typeof selection === 'number' ? chores.find((c) => c.id === selection) : undefined
+  const editingId = selectedChoreId(selection)
+  const editingChore = editingId !== null ? chores.find((c) => c.id === editingId) : undefined
 
   const filtered = chores.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
   const needCount = chores.filter(needsPerson).length
@@ -163,7 +170,7 @@ export function ChoresPage({ chores, people, weekStart, selection, onSelect, onS
       return setError('Pick at least one day.')
     if (draft.scheduleKind === 'oneoff' && !draft.date)
       return setError('Pick a date.')
-    onSave(buildChore(draft, typeof selection === 'number' ? selection : 0))
+    onSave(buildChore(draft, editingId ?? ''))
     setError('')
     if (selection === 'new') onSelect(null)
   }
@@ -227,7 +234,7 @@ export function ChoresPage({ chores, people, weekStart, selection, onSelect, onS
             error={error}
             onSubmit={submit}
             onCancel={() => onSelect(null)}
-            onDelete={typeof selection === 'number' ? () => { onDelete(selection); onSelect(null) } : undefined}
+            onDelete={editingId !== null ? () => { onDelete(editingId); onSelect(null) } : undefined}
           />
         )}
       </div>
@@ -257,7 +264,7 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, isNew, editin
       days: prev.days.includes(d) ? prev.days.filter((x) => x !== d) : [...prev.days, d].sort((a, b) => a - b),
     }))
 
-  const toggleRotate = (id: number) =>
+  const toggleRotate = (id: string) =>
     setDraft((prev) => prev && ({
       ...prev,
       rotateIds: prev.rotateIds.includes(id)
@@ -265,7 +272,7 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, isNew, editin
         : [...prev.rotateIds, id],
     }))
 
-  const setByDay = (day: DayIndex, personId: number | null) =>
+  const setByDay = (day: DayIndex, personId: string | null) =>
     setDraft((prev) => prev && ({ ...prev, byDay: { ...prev.byDay, [day]: personId } }))
 
   // 'byday' only makes sense for weekly chores; drop back to manual otherwise.
@@ -436,7 +443,7 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, isNew, editin
           <div className="field">
             <label>Person</label>
             <select className="input" value={draft.manualPersonId ?? ''}
-              onChange={(e) => set('manualPersonId', e.target.value ? Number(e.target.value) : null)}>
+              onChange={(e) => set('manualPersonId', e.target.value || null)}>
               <option value="">— Unassigned —</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -486,7 +493,7 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, isNew, editin
                   <div key={d} className="byday-row">
                     <span className="byday-day">{DAY_NAMES[d]}</span>
                     <select className="input" value={draft.byDay[d] ?? ''}
-                      onChange={(e) => setByDay(d, e.target.value ? Number(e.target.value) : null)}>
+                      onChange={(e) => setByDay(d, e.target.value || null)}>
                       <option value="">— Unassigned —</option>
                       {people.map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
@@ -522,8 +529,8 @@ function RotatePreview({ draft, chores, people, weekStart }: {
 }) {
   const preview = useMemo(() => {
     if (draft.rotateIds.length === 0) return []
-    // A stand-in id well clear of real ones keeps the offset map honest for new chores.
-    const id = 1_000_000
+    // A stand-in id that no real chore uses keeps the offset map honest for new chores.
+    const id = 'rotate-preview'
     const chore = buildChore({ ...draft, mode: 'rotate' }, id)
     const offset = rotationOffsets([...chores, chore]).get(id) ?? 0
     const dates: Date[] = []

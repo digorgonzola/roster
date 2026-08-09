@@ -14,7 +14,7 @@ interface Props {
   selectedDay: DayIndex
   onSelectDay: (d: DayIndex) => void
   onAssign: (target: AssignTarget) => void
-  onOpenChore: (id: number) => void
+  onOpenChore: (id: string) => void
   onAddChore: () => void
 }
 

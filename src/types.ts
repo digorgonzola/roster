@@ -9,7 +9,7 @@ export type Effort = 'light' | 'medium' | 'heavy'
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'anytime'
 
 export interface Person {
-  id: number
+  id: string
   name: string
   /** On-screen colour only. The print view relies on name + initials + pattern. */
   color: string
@@ -46,7 +46,7 @@ export type Schedule = WeeklySchedule | OneOffSchedule | MonthlySchedule
 /** One fixed person does it. */
 export interface ManualAssignment {
   mode: 'manual'
-  personId: number | null
+  personId: string | null
 }
 
 /** Rotates one person forward across the listed people, each day or each week. */
@@ -54,20 +54,20 @@ export interface RotateAssignment {
   mode: 'rotate'
   /** 'weekly' = same person all week; 'daily' = advances every day. Missing = weekly. */
   period?: 'daily' | 'weekly'
-  personIds: number[]
+  personIds: string[]
 }
 
 /** A fixed person per weekday, e.g. Tue → Jim, Wed → Bob. */
 export interface ByDayAssignment {
   mode: 'byday'
   /** Keyed by DayIndex (0=Mon..6=Sun). Missing / null = unassigned that day. */
-  byDay: Partial<Record<DayIndex, number | null>>
+  byDay: Partial<Record<DayIndex, string | null>>
 }
 
 export type Assignment = ManualAssignment | RotateAssignment | ByDayAssignment
 
 export interface Chore {
-  id: number
+  id: string
   name: string
   notes?: string
   effort?: Effort
@@ -75,15 +75,22 @@ export interface Chore {
   timeOfDay?: TimeOfDay
   schedule: Schedule
   assignment: Assignment
+  /**
+   * Frozen rotation phase, assigned once at creation (or by migration).
+   * Keeps rotations stable when the chores array is reordered or merged.
+   */
+  rotationOffset?: number
 }
 
 export interface AppState {
+  /** Stored-blob schema version. Bump with a matching step in migrate.ts. */
+  schemaVersion: 2
   people: Person[]
   chores: Chore[]
   /** 0 = week starts Sunday, 1 = week starts Monday. */
   weekStartsOn: 0 | 1
   /** Completed occurrences, keyed 'YYYY-MM-DD' → chore ids done that day. */
-  done: Record<string, number[]>
+  done: Record<string, string[]>
 }
 
 /** A single expanded occurrence of a chore within a given week. */

@@ -6,11 +6,12 @@ import { longDate } from '../labels'
 import { Avatar } from './Avatar'
 
 export interface AssignTarget {
-  choreId: number
+  choreId: string
   date: string
 }
 
-export type AssignChoice = number | 'rotate'
+/** A person id, or the reserved 'rotate' choice (never a real id, see ids.ts). */
+export type AssignChoice = string | 'rotate'
 
 interface Props {
   state: AppState
@@ -25,12 +26,12 @@ export function AssignSheet({ state, weekStart, target, onAssign, onClose }: Pro
 
   const { counts, lightestId } = useMemo(() => {
     const entries = entriesForWeek(state, weekStart)
-    const counts = new Map<number, number>()
+    const counts = new Map<string, number>()
     for (const p of state.people) counts.set(p.id, 0)
     for (const e of entries) {
       if (e.assignee) counts.set(e.assignee.id, (counts.get(e.assignee.id) ?? 0) + 1)
     }
-    let lightestId: number | null = null
+    let lightestId: string | null = null
     for (const p of state.people) {
       if (lightestId === null || (counts.get(p.id) ?? 0) < (counts.get(lightestId) ?? 0)) lightestId = p.id
     }

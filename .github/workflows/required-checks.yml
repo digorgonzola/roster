@@ -81,7 +81,7 @@ jobs:
           # Exact check-run names (status contexts). Add new gating checks
           # here as workflows grow.
           required-checks: |
-            Type Check & Build
+            Type Check, Test & Build
           # Absent-after-grace means not-applicable. Matches the action's
           # 90s default; absorbs GitHub's queue latency before ci.yml
           # registers its check-run on the head SHA.

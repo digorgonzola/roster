@@ -8,7 +8,7 @@ import { Avatar } from './Avatar'
 export type DashboardView = 'grid' | 'lanes'
 
 export interface AssignTarget {
-  choreId: number
+  choreId: string
   date: string
 }
 
@@ -17,9 +17,9 @@ interface Props {
   weekStart: Date
   view: DashboardView
   onViewChange: (v: DashboardView) => void
-  personFilter: number | null
-  onFilterChange: (id: number | null) => void
-  onOpenChore: (id: number) => void
+  personFilter: string | null
+  onFilterChange: (id: string | null) => void
+  onOpenChore: (id: string) => void
   onAssign: (target: AssignTarget) => void
   onAddChore: () => void
   onExport: () => void
@@ -189,7 +189,7 @@ export function Dashboard(props: Props) {
 }
 
 function RailLoad({ state, entries }: { state: AppState; entries: WeekEntry[] }) {
-  const counts = new Map<number, number>()
+  const counts = new Map<string, number>()
   for (const e of entries) {
     if (e.assignee) counts.set(e.assignee.id, (counts.get(e.assignee.id) ?? 0) + 1)
   }

@@ -10,7 +10,7 @@ interface Props {
   weekStart: Date
   onAdd: (name: string, color: string) => void
   onUpdate: (person: Person) => void
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
   onExport: () => void
   onImport: (file: File) => void
   onReset: () => void
@@ -23,7 +23,7 @@ function patternLabel(color: string): string {
   return name[0].toUpperCase() + name.slice(1)
 }
 
-function choreCount(chores: Chore[], personId: number): number {
+function choreCount(chores: Chore[], personId: string): number {
   return chores.filter((c) => {
     const a = c.assignment
     if (a.mode === 'manual') return a.personId === personId
@@ -39,7 +39,7 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete, onExpo
   const nameRef = useRef<HTMLInputElement>(null)
 
   const entries = entriesForWeek(state, weekStart)
-  const counts = new Map<number, number>()
+  const counts = new Map<string, number>()
   for (const e of entries) {
     if (e.assignee) counts.set(e.assignee.id, (counts.get(e.assignee.id) ?? 0) + 1)
   }

@@ -23,7 +23,7 @@ export function assigneeForDate(
    */
   offset = 0,
 ): Person | null {
-  const byId = (id: number | null) =>
+  const byId = (id: string | null) =>
     id == null ? null : people.find((p) => p.id === id) ?? null
 
   if (chore.assignment.mode === 'manual') {
