@@ -4,21 +4,21 @@
 
 # --- Supply-chain security ---
 
-# Never run lifecycle scripts (preinstall/install/postinstall) of dependencies.
-# pnpm 10 blocks them by default. An explicit empty allowlist makes the policy
-# auditable and intentional. esbuild and vite work without scripts because
-# their native binaries ship as platform-specific optional dependencies.
-onlyBuiltDependencies: []
+# Never run lifecycle scripts (preinstall/install/postinstall) of dependencies
+# unless a package is set to true below. pnpm 11 replaced the pnpm 10
+# settings onlyBuiltDependencies and ignoredBuiltDependencies with this map.
+# Each entry below is reviewed and denied (false). esbuild's postinstall only
+# validates its binary. The binary itself comes from the @esbuild/*
+# platform-specific optional dependency, so the script is not needed.
+# workerd (via wrangler) follows the same pattern: its binary ships as
+# @cloudflare/workerd-* platform-specific optional dependencies and the
+# postinstall only validates it.
+allowBuilds:
+  esbuild: false
+  workerd: false
 
-# Dependencies that declare build scripts, reviewed and denied. esbuild's
-# postinstall only validates its binary. The binary itself comes from the
-# @esbuild/* platform-specific optional dependency, so the script is not
-# needed.
-ignoredBuiltDependencies:
-  - esbuild
-
-# Fail the install (instead of a warning) if a dependency would run a
-# build script that is not on the allowlist above.
+# Fail the install (instead of a warning) if a dependency has a build
+# script that is not reviewed in the map above.
 strictDepBuilds: true
 
 # Refuse to install a version published to the registry less than 7 days ago.
