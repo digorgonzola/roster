@@ -5,7 +5,9 @@
     ":pinAllExceptPeerDependencies",
     "schedule:weekly"
   ],
-  "timezone": "Australia/Perth",
+  "timezone": "Australia/Hobart",
+  "platformAutomerge": false,
+  "automergeStrategy": "squash",
   "labels": ["dependencies"],
   "minimumReleaseAge": "7 days",
   "internalChecksFilter": "strict",
