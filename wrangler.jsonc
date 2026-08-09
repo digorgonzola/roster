@@ -1,7 +1,27 @@
 {
   "name": "roster",
-  "compatibility_date": "2026-08-09",
+  "main": "worker/index.ts",
+  // Newest date the local workerd binary (wrangler 4.118.0) supports.
+  "compatibility_date": "2026-08-06",
   "assets": {
-    "directory": "./dist"
-  }
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // The API must never fall through to static assets.
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "RosterRoom" }]
+  },
+  "migrations": [
+    // SQLite-backed classes: required for Durable Objects on the free plan.
+    // NOTE: branch builds (wrangler versions upload) cannot apply a PENDING
+    // DO migration (Cloudflare error 10211). This migration is already
+    // applied to the deployed Worker, so version uploads pass. Any FUTURE
+    // migration added here will fail branch builds until a production
+    // deploy applies it. Do not point branch builds at `wrangler deploy`:
+    // Workers Builds pins the Worker name, ignores a different env name,
+    // and full-deploys the branch to production.
+    { "tag": "v1", "new_sqlite_classes": ["RosterRoom"] }
+  ]
 }
