@@ -12,8 +12,19 @@ function nextId(items: { id: number }[]): number {
   return items.reduce((max, i) => Math.max(max, i.id), 0) + 1
 }
 
+type Tab = 'roster' | 'chores' | 'people' | 'print' | 'backup'
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'roster', label: 'Roster' },
+  { key: 'chores', label: 'Chores' },
+  { key: 'people', label: 'People' },
+  { key: 'print', label: 'Print' },
+  { key: 'backup', label: 'Backup' },
+]
+
 export default function App() {
   const [state, setState] = useState<AppState>(() => load())
+  const [tab, setTab] = useState<Tab>('roster')
   const [anchor, setAnchor] = useState<Date>(() => new Date())
   const [printLayout, setPrintLayout] = useState<PrintLayout>('grid')
   const [importError, setImportError] = useState('')
@@ -79,92 +90,126 @@ export default function App() {
     <div className="app">
       <header className="topbar no-print">
         <h1>🧹 Household Chore Roster</h1>
-        <div className="week-nav">
-          <button className="btn" onClick={() => setAnchor((d) => addDays(d, -7))} aria-label="Previous week">‹</button>
-          <button className="btn" onClick={() => setAnchor(new Date())}>This week</button>
-          <button className="btn" onClick={() => setAnchor((d) => addDays(d, 7))} aria-label="Next week">›</button>
-          <span className="week-label">{weekLabel(weekStart)}</span>
-        </div>
+        {(tab === 'roster' || tab === 'print') && (
+          <div className="week-nav">
+            <button className="btn" onClick={() => setAnchor((d) => addDays(d, -7))} aria-label="Previous week">‹</button>
+            <button className="btn" onClick={() => setAnchor(new Date())}>This week</button>
+            <button className="btn" onClick={() => setAnchor((d) => addDays(d, 7))} aria-label="Next week">›</button>
+            <span className="week-label">{weekLabel(weekStart)}</span>
+          </div>
+        )}
+        <nav className="tabs" aria-label="Sections">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={tab === t.key ? 'tab on' : 'tab'}
+              aria-current={tab === t.key ? 'page' : undefined}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+              {t.key === 'chores' && state.chores.length > 0 && <span className="tab-count">{state.chores.length}</span>}
+              {t.key === 'people' && state.people.length > 0 && <span className="tab-count">{state.people.length}</span>}
+            </button>
+          ))}
+        </nav>
       </header>
 
       <main className="layout no-print">
-        <div className="col col-manage">
-          <PeopleManager
-            people={state.people}
-            onAdd={addPerson}
-            onUpdate={updatePerson}
-            onDelete={deletePerson}
-          />
-          <ChoreManager
-            chores={state.chores}
-            people={state.people}
-            onSave={saveChore}
-            onDelete={deleteChore}
-          />
-        </div>
-
-        <div className="col col-week">
-          <section className="panel">
-            <div className="panel-head">
-              <h2>This week</h2>
-              <label className="week-start">
-                Week starts
-                <select
-                  value={state.weekStartsOn}
-                  onChange={(e) => setState((s) => ({ ...s, weekStartsOn: Number(e.target.value) as 0 | 1 }))}
-                >
-                  <option value={1}>Monday</option>
-                  <option value={0}>Sunday</option>
-                </select>
-              </label>
-            </div>
-            <WeekView state={state} weekStart={weekStart} />
-          </section>
-
-          <LoadSummary state={state} weekStart={weekStart} />
-
-          <section className="panel print-panel">
-            <h2>Print roster</h2>
-            <div className="print-controls">
-              <div className="segmented">
-                <button className={printLayout === 'grid' ? 'seg on' : 'seg'} onClick={() => setPrintLayout('grid')}>
-                  Weekly grid
-                </button>
-                <button className={printLayout === 'cards' ? 'seg on' : 'seg'} onClick={() => setPrintLayout('cards')}>
-                  Per-person
-                </button>
+        {tab === 'roster' && (
+          <div className="col">
+            <section className="panel">
+              <div className="panel-head">
+                <h2>This week</h2>
+                <label className="week-start">
+                  Week starts
+                  <select
+                    value={state.weekStartsOn}
+                    onChange={(e) => setState((s) => ({ ...s, weekStartsOn: Number(e.target.value) as 0 | 1 }))}
+                  >
+                    <option value={1}>Monday</option>
+                    <option value={0}>Sunday</option>
+                  </select>
+                </label>
               </div>
-              <button className="btn primary" onClick={() => doPrint(printLayout)}>🖨 Print / Save PDF</button>
-            </div>
-            <p className="hint">A4, grayscale-safe. Choose a layout, then print. Set your browser to “Save as PDF” for a digital copy.</p>
+              <WeekView state={state} weekStart={weekStart} />
+            </section>
 
-            <div className="print-preview">
-              <PrintRoster state={state} weekStart={weekStart} layout={printLayout} />
-            </div>
-          </section>
+            <LoadSummary state={state} weekStart={weekStart} />
+          </div>
+        )}
 
-          <section className="panel data-panel">
-            <h2>Backup</h2>
-            <div className="data-actions">
-              <button className="btn" onClick={() => exportJson(state)}>Export JSON</button>
-              <button className="btn" onClick={() => fileRef.current?.click()}>Import JSON</button>
-              <button className="btn danger ghost" onClick={resetAll}>Reset to example</button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="application/json"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) doImport(f)
-                  e.target.value = ''
-                }}
-              />
-            </div>
-            {importError && <p className="error">{importError}</p>}
-            <p className="hint">Data is stored in this browser. Export to back up or move it to another device.</p>
-          </section>
-        </div>
+        {tab === 'chores' && (
+          <div className="col col-narrow">
+            <ChoreManager
+              chores={state.chores}
+              people={state.people}
+              onSave={saveChore}
+              onDelete={deleteChore}
+            />
+          </div>
+        )}
+
+        {tab === 'people' && (
+          <div className="col col-narrow">
+            <PeopleManager
+              people={state.people}
+              onAdd={addPerson}
+              onUpdate={updatePerson}
+              onDelete={deletePerson}
+            />
+          </div>
+        )}
+
+        {tab === 'print' && (
+          <div className="col">
+            <section className="panel print-panel">
+              <h2>Print roster</h2>
+              <div className="print-controls">
+                <div className="segmented">
+                  <button className={printLayout === 'grid' ? 'seg on' : 'seg'} onClick={() => setPrintLayout('grid')}>
+                    Weekly grid
+                  </button>
+                  <button className={printLayout === 'cards' ? 'seg on' : 'seg'} onClick={() => setPrintLayout('cards')}>
+                    Per-person
+                  </button>
+                </div>
+                <button className="btn primary" onClick={() => doPrint(printLayout)}>🖨 Print / Save PDF</button>
+              </div>
+              <p className="hint">A4, grayscale-safe. Choose a layout, then print. Set your browser to “Save as PDF” for a digital copy.</p>
+
+              <div className="print-preview">
+                <PrintRoster state={state} weekStart={weekStart} layout={printLayout} />
+              </div>
+            </section>
+          </div>
+        )}
+
+        {tab === 'backup' && (
+          <div className="col col-narrow">
+            <section className="panel data-panel">
+              <h2>Backup</h2>
+              <div className="data-actions">
+                <button className="btn" onClick={() => exportJson(state)}>Export JSON</button>
+                <button className="btn" onClick={() => fileRef.current?.click()}>Import JSON</button>
+                <button className="btn danger ghost" onClick={resetAll}>Reset to example</button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/json"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) doImport(f)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+              {importError && <p className="error">{importError}</p>}
+              <p className="hint">Data is stored in this browser. Export to back up or move it to another device.</p>
+            </section>
+          </div>
+        )}
       </main>
 
       {/* Print-only output — hidden on screen, shown when printing */}

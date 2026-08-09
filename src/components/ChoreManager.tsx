@@ -92,6 +92,7 @@ const EFFORTS: Effort[] = ['light', 'medium', 'heavy']
 
 export function ChoreManager({ chores, people, onSave, onDelete }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(people))
   const [error, setError] = useState('')
 
@@ -129,12 +130,21 @@ export function ChoreManager({ chores, people, onSave, onDelete }: Props) {
 
   const resetForm = () => {
     setEditingId(null)
+    setAdding(false)
+    setDraft(emptyDraft(people))
+    setError('')
+  }
+
+  const startAdd = () => {
+    setEditingId(null)
+    setAdding(true)
     setDraft(emptyDraft(people))
     setError('')
   }
 
   const startEdit = (c: Chore) => {
     setEditingId(c.id)
+    setAdding(false)
     setDraft(draftFromChore(c, people))
     setError('')
   }
@@ -483,19 +493,26 @@ export function ChoreManager({ chores, people, onSave, onDelete }: Props) {
           <button className="btn primary" onClick={submit} type="button">
             {editingId ? 'Save changes' : 'Add chore'}
           </button>
-          {editingId && (
-            <button className="btn ghost" onClick={resetForm} type="button">Cancel</button>
-          )}
+          <button className="btn ghost" onClick={resetForm} type="button">Cancel</button>
         </div>
       </div>
   )
 
   return (
     <section className="panel">
-      <h2>Chores</h2>
+      <div className="panel-head">
+        <h2>Chores</h2>
+        {!adding && editingId === null && (
+          <button className="btn primary" onClick={startAdd} type="button">＋ Add chore</button>
+        )}
+      </div>
 
-      {/* Add form at the top; while editing, the form moves inline to the row instead */}
-      {editingId === null && formEl}
+      {/* Form is hidden until Add is pressed; while editing it moves inline to the row */}
+      {adding && editingId === null && formEl}
+
+      {chores.length === 0 && !adding && (
+        <p className="muted">No chores yet. Press “Add chore” to create the first one.</p>
+      )}
 
       {chores.length > 0 && (
         <ul className="chore-list">
