@@ -13,6 +13,7 @@ export function seedState(): AppState {
   return {
     people,
     weekStartsOn: 1,
+    done: {},
     chores: [
       {
         id: 1,
@@ -74,14 +75,21 @@ function isValid(x: unknown): x is AppState {
   return Array.isArray(s.people) && Array.isArray(s.chores)
 }
 
+/** Fill defaults for fields older saved states won't have (`done`). */
+function normalize(parsed: AppState): AppState {
+  return {
+    ...parsed,
+    weekStartsOn: parsed.weekStartsOn === 0 ? 0 : 1,
+    done: parsed.done && typeof parsed.done === 'object' ? parsed.done : {},
+  }
+}
+
 export function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (isValid(parsed)) {
-        return { ...parsed, weekStartsOn: parsed.weekStartsOn === 0 ? 0 : 1 }
-      }
+      if (isValid(parsed)) return normalize(parsed)
     }
   } catch {
     // fall through to seed
@@ -129,7 +137,7 @@ export function importJson(file: File): Promise<AppState> {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result))
-        if (isValid(parsed)) resolve({ ...parsed, weekStartsOn: parsed.weekStartsOn === 0 ? 0 : 1 })
+        if (isValid(parsed)) resolve(normalize(parsed))
         else reject(new Error('Not a valid roster file.'))
       } catch {
         reject(new Error('Could not read that file.'))

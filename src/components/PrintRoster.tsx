@@ -1,8 +1,9 @@
 import type { AppState, WeekEntry } from '../types'
 import { entriesForWeek } from '../schedule'
-import { DAY_NAMES, daysOfWeek, toDayIndex, weekLabel } from '../week'
+import { DAY_NAMES, daysOfWeek, toDayIndex, weekLabelLong } from '../week'
 import { initials, patternFor } from '../palette'
-import { timeLabel, timeOrder } from '../timeofday'
+import { TIME_SLOTS } from '../timeofday'
+import type { PrintOptions } from './PrintPanel'
 
 export type PrintLayout = 'grid' | 'cards'
 
@@ -10,174 +11,173 @@ interface Props {
   state: AppState
   weekStart: Date
   layout: PrintLayout
+  options: PrintOptions
 }
 
-export function PrintRoster({ state, weekStart, layout }: Props) {
-  const entries = entriesForWeek(state, weekStart)
+export function PrintRoster({ state, weekStart, layout, options }: Props) {
+  let entries = entriesForWeek(state, weekStart)
+  if (options.hideUnassigned) entries = entries.filter((e) => e.assignee)
+
+  const printedOn = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+
   return (
-    <div className="print-root">
-      <header className="print-header">
-        <h1>Household Chore Roster</h1>
-        <p className="print-week">Week of {weekLabel(weekStart)}</p>
+    <div className={`print-root print-${layout}`}>
+      {/* @page can't be scoped by class, so the layout injects its own sheet size. */}
+      <style>{`@media print { @page { size: A4 ${layout === 'grid' ? 'landscape' : 'portrait'}; margin: 12mm; } }`}</style>
+
+      <header className="pr-masthead">
+        <div className="pr-masthead-left">
+          <span className="pr-kicker">Household roster</span>
+          <h1 className="pr-week">{weekLabelLong(weekStart)}</h1>
+        </div>
+        <div className="pr-masthead-right">
+          {layout === 'cards' && <span className="pr-cut">Cut along the rules · one card each</span>}
+          {options.personKey && layout === 'grid' && (
+            <span className="pr-key">
+              {state.people.map((p) => (
+                <span key={p.id} className="pr-key-item">
+                  <PrintSwatch color={p.color} label={initials(p.name)} />
+                  <b>{p.name}</b>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
       </header>
 
       {layout === 'grid'
-        ? <GridLayout state={state} weekStart={weekStart} entries={entries} />
-        : <CardsLayout state={state} entries={entries} />}
+        ? <PrintGrid state={state} weekStart={weekStart} entries={entries} options={options} />
+        : <PrintCards state={state} entries={entries} options={options} />}
 
-      <Legend state={state} />
+      <footer className="pr-footer">
+        <span>
+          {layout === 'grid'
+            ? "Tick it when it's done."
+            : 'Swatch = colour + pattern, so the card still reads photocopied.'}
+        </span>
+        <span>Printed {printedOn}</span>
+      </footer>
     </div>
   )
 }
 
-function GridLayout({ state, weekStart, entries }: { state: AppState; weekStart: Date; entries: WeekEntry[] }) {
-  const cols = daysOfWeek(weekStart)
-  const choreOrder: number[] = []
-  const map = new Map<string, WeekEntry>()
-  for (const e of entries) {
-    if (!choreOrder.includes(e.chore.id)) choreOrder.push(e.chore.id)
-    map.set(`${e.chore.id}:${e.dayIndex}`, e)
-  }
-  const chores = choreOrder
-    .map((id) => state.chores.find((c) => c.id === id)!)
-    .filter(Boolean)
-    .sort((a, b) => timeOrder(a.timeOfDay) - timeOrder(b.timeOfDay) || a.name.localeCompare(b.name))
-
-  if (chores.length === 0) return <p className="print-empty">No chores scheduled this week.</p>
-
+function PrintSwatch({ color, label }: { color: string; label?: string }) {
   return (
-    <table className="print-grid">
-      <thead>
-        <tr>
-          <th className="corner">Chore</th>
-          {cols.map((d) => (
-            <th key={d.toISOString()}>
-              {DAY_NAMES[toDayIndex(d)]}<br />
-              <span className="pg-date">{d.getDate()}</span>
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {chores.map((c) => (
-          <tr key={c.id}>
-            <th scope="row" className="pg-chore">
-              {c.name}
-              <span className="pg-time">{timeLabel(c.timeOfDay)}</span>
-            </th>
-            {cols.map((d) => {
-              const e = map.get(`${c.id}:${toDayIndex(d)}`)
-              return (
-                <td key={d.toISOString()} className={e ? 'pg-on' : 'pg-off'}>
-                  {e && (
-                    <span className="pg-cell">
-                      <span className="pg-tick" />
-                      <PrintName person={e.assignee} />
-                    </span>
-                  )}
-                </td>
-              )
-            })}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <span className={`pr-swatch pat-${patternFor(color)}`} style={{ ['--pc' as string]: color }}>
+      {label && <span className="pr-swatch-label">{label}</span>}
+    </span>
   )
 }
 
-function CardsLayout({ state, entries }: { state: AppState; entries: WeekEntry[] }) {
-  // Group entries by assignee id (null bucket for unassigned).
+function Entry({ e, options }: { e: WeekEntry; options: PrintOptions }) {
+  return (
+    <div className="pr-entry">
+      {options.tickBoxes && <span className="pr-tick" />}
+      <span className="pr-entry-text">
+        <b className="pr-entry-initials">{e.assignee ? initials(e.assignee.name) : '—'}</b>{' '}
+        {e.chore.name}
+        {options.notes && e.chore.notes && <span className="pr-entry-note"> · {e.chore.notes}</span>}
+      </span>
+    </div>
+  )
+}
+
+function PrintGrid({ state, weekStart, entries, options }: {
+  state: AppState
+  weekStart: Date
+  entries: WeekEntry[]
+  options: PrintOptions
+}) {
+  const cols = daysOfWeek(weekStart)
+  if (state.chores.length === 0) return <p className="pr-empty">No chores scheduled this week.</p>
+
+  return (
+    <div className="pr-grid">
+      <div className="pr-grid-corner" />
+      {cols.map((d) => (
+        <div key={d.toISOString()} className="pr-grid-day">
+          <b>{DAY_NAMES[toDayIndex(d)]}</b>
+          <span>{d.getDate()} {d.toLocaleDateString(undefined, { month: 'short' })}</span>
+        </div>
+      ))}
+      {TIME_SLOTS.map((slot) => (
+        <div key={slot.key} className="pr-grid-row">
+          <div className="pr-grid-slot">{slot.label}</div>
+          {cols.map((d) => (
+            <div key={d.toISOString()} className="pr-grid-cell">
+              {entries
+                .filter((e) => e.dayIndex === toDayIndex(d) && (e.chore.timeOfDay ?? 'anytime') === slot.key)
+                .map((e) => <Entry key={`${e.chore.id}:${e.date}`} e={e} options={options} />)}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function PrintCards({ state, entries, options }: {
+  state: AppState
+  entries: WeekEntry[]
+  options: PrintOptions
+}) {
   const byPerson = new Map<number | 'none', WeekEntry[]>()
   for (const e of entries) {
     const key = e.assignee ? e.assignee.id : 'none'
     if (!byPerson.has(key)) byPerson.set(key, [])
     byPerson.get(key)!.push(e)
   }
-
   const cards = state.people
     .map((p) => ({ person: p, items: byPerson.get(p.id) ?? [] }))
     .filter((c) => c.items.length > 0)
-
-  const unassigned = byPerson.get('none') ?? []
+  const unassigned = options.hideUnassigned ? [] : (byPerson.get('none') ?? [])
 
   if (cards.length === 0 && unassigned.length === 0)
-    return <p className="print-empty">No chores scheduled this week.</p>
+    return <p className="pr-empty">No chores scheduled this week.</p>
+
+  const dayRows = (items: WeekEntry[]) => {
+    const byDay = new Map<number, WeekEntry[]>()
+    for (const e of items) {
+      if (!byDay.has(e.dayIndex)) byDay.set(e.dayIndex, [])
+      byDay.get(e.dayIndex)!.push(e)
+    }
+    return [...byDay.entries()].sort((a, b) => a[0] - b[0]).map(([day, dayItems]) => (
+      <div key={day} className="pr-card-dayrow">
+        <span className="pr-card-day">{DAY_NAMES[day]}</span>
+        <span className="pr-card-lines">
+          {dayItems.map((e) => (
+            <span key={`${e.chore.id}:${e.date}`} className="pr-card-line">
+              {options.tickBoxes && <span className="pr-tick" />}
+              {e.chore.name}
+              {options.notes && e.chore.notes && <span className="pr-entry-note"> · {e.chore.notes}</span>}
+            </span>
+          ))}
+        </span>
+      </div>
+    ))
+  }
 
   return (
-    <div className="print-cards">
+    <div className="pr-cards">
       {cards.map(({ person, items }) => (
-        <div key={person.id} className="print-card">
-          <div className="pc-head">
-            <span className={`pc-swatch pat-${patternFor(person.color)}`} style={{ ['--pc' as string]: person.color }} />
-            <span className="pc-name">{person.name}</span>
-            <span className="pc-initials">{initials(person.name)}</span>
+        <div key={person.id} className="pr-card">
+          <div className="pr-card-head">
+            {options.personKey && <PrintSwatch color={person.color} label={initials(person.name)} />}
+            <b className="pr-card-name">{person.name}</b>
+            <span className="pr-card-jobs">{items.length} job{items.length === 1 ? '' : 's'}</span>
           </div>
-          <ul className="pc-list">
-            {sortByDay(items).map((e, i) => (
-              <li key={i}>
-                <span className="pc-tick" />
-                <span className="pc-day">{DAY_NAMES[e.dayIndex]}</span>
-                <span className="pc-time">{timeLabel(e.chore.timeOfDay)}</span>
-                <span className="pc-chore">{e.chore.name}</span>
-                {e.chore.notes && <span className="pc-note">{e.chore.notes}</span>}
-              </li>
-            ))}
-          </ul>
+          {dayRows(items)}
         </div>
       ))}
-
       {unassigned.length > 0 && (
-        <div className="print-card unassigned">
-          <div className="pc-head">
-            <span className="pc-swatch pat-solid" style={{ ['--pc' as string]: '#ffffff' }} />
-            <span className="pc-name">Unassigned</span>
+        <div className="pr-card pr-card-unassigned">
+          <div className="pr-card-head">
+            <b className="pr-card-name">Unassigned</b>
+            <span className="pr-card-jobs">{unassigned.length}</span>
           </div>
-          <ul className="pc-list">
-            {sortByDay(unassigned).map((e, i) => (
-              <li key={i}>
-                <span className="pc-tick" />
-                <span className="pc-day">{DAY_NAMES[e.dayIndex]}</span>
-                <span className="pc-time">{timeLabel(e.chore.timeOfDay)}</span>
-                <span className="pc-chore">{e.chore.name}</span>
-              </li>
-            ))}
-          </ul>
+          {dayRows(unassigned)}
         </div>
       )}
     </div>
-  )
-}
-
-function Legend({ state }: { state: AppState }) {
-  if (state.people.length === 0) return null
-  return (
-    <div className="print-legend">
-      <span className="pl-title">Key:</span>
-      {state.people.map((p) => (
-        <span key={p.id} className="pl-item">
-          <span className={`pc-swatch pat-${patternFor(p.color)}`} style={{ ['--pc' as string]: p.color }} />
-          {p.name} ({initials(p.name)})
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function PrintName({ person }: { person: WeekEntry['assignee'] }) {
-  if (!person) return <span className="pg-name none">—</span>
-  return (
-    <span className="pg-name">
-      <span className={`pg-swatch pat-${patternFor(person.color)}`} style={{ ['--pc' as string]: person.color }} />
-      {person.name}
-    </span>
-  )
-}
-
-function sortByDay(items: WeekEntry[]): WeekEntry[] {
-  return [...items].sort(
-    (a, b) =>
-      a.dayIndex - b.dayIndex ||
-      timeOrder(a.chore.timeOfDay) - timeOrder(b.chore.timeOfDay) ||
-      a.chore.name.localeCompare(b.chore.name),
   )
 }

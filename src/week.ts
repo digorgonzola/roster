@@ -92,6 +92,17 @@ export function isNthWeekdayOfMonth(date: Date, weekday: DayIndex, nth: number |
   return Math.floor((dom - 1) / 7) + 1 === nth
 }
 
+/** Long label like "Mon 3 – Sun 9 Aug 2026" for the print masthead. */
+export function weekLabelLong(weekStart: Date): string {
+  const end = addDays(weekStart, 6)
+  const sameMonth = weekStart.getMonth() === end.getMonth() && weekStart.getFullYear() === end.getFullYear()
+  const startStr = sameMonth
+    ? `${DAY_NAMES[toDayIndex(weekStart)]} ${weekStart.getDate()}`
+    : `${DAY_NAMES[toDayIndex(weekStart)]} ${weekStart.getDate()} ${weekStart.toLocaleDateString(undefined, { month: 'short' })}`
+  const endStr = `${DAY_NAMES[toDayIndex(end)]} ${end.getDate()} ${end.toLocaleDateString(undefined, { month: 'short' })} ${end.getFullYear()}`
+  return `${startStr} – ${endStr}`
+}
+
 /** Human label like "4 – 10 Aug 2026" for the week beginning at weekStart. */
 export function weekLabel(weekStart: Date): string {
   const end = addDays(weekStart, 6)
