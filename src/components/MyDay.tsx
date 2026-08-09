@@ -1,7 +1,7 @@
 import type { AppState, Person, WeekEntry } from '../types'
 import { entriesForWeek } from '../schedule'
 import { startOfWeek, ymd } from '../week'
-import { TIME_SLOTS } from '../timeofday'
+import { TIME_SLOTS, slotLabel } from '../timeofday'
 import { isEntryDone, longDate, myDayMeta } from '../labels'
 import { Avatar } from './Avatar'
 
@@ -81,7 +81,7 @@ export function MyDay({ state, person, onPersonChange, onToggleDone }: Props) {
               if (slotEntries.length === 0) return null
               return (
                 <section key={slot.key} className="myday-slot">
-                  <h6>{slot.label}</h6>
+                  <h6>{slotLabel(state.timeOfDayLabels, slot.key)}</h6>
                   {slotEntries.map(row)}
                 </section>
               )

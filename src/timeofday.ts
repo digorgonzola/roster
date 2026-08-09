@@ -23,3 +23,11 @@ export function timeOrder(t: TimeOfDay | undefined): number {
 export function timeLabel(t: TimeOfDay | undefined): string {
   return (TIME_SLOTS.find((s) => s.key === t) ?? TIME_SLOTS[3]).label
 }
+
+/** The household's name for a slot, falling back to the default label. */
+export function slotLabel(
+  labels: Partial<Record<TimeOfDay, string>> | undefined,
+  t: TimeOfDay,
+): string {
+  return labels?.[t] || timeLabel(t)
+}

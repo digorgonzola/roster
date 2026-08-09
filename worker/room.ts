@@ -75,10 +75,40 @@ export class RosterRoom extends DurableObject<Env> {
       ws.serializeAttachment({ authed: true })
       const rev = (await this.ctx.storage.get<number>('rev')) ?? 0
       ws.send(JSON.stringify({ t: 'ok', rev } satisfies ServerMessage))
+      this.broadcastPresence()
       return
     }
     await this.ctx.storage.put('fails', fails + 1)
     ws.close(1008, 'unauthorized')
+  }
+
+  webSocketClose(): void {
+    this.broadcastPresence()
+  }
+
+  webSocketError(): void {
+    this.broadcastPresence()
+  }
+
+  private authedSockets(): WebSocket[] {
+    return this.ctx.getWebSockets().filter((ws) => {
+      if (ws.readyState !== WebSocket.READY_STATE_OPEN) return false
+      const attachment = (ws.deserializeAttachment() ?? {}) as { authed?: boolean }
+      return attachment.authed === true
+    })
+  }
+
+  /** Tell every device how many are connected, for the Settings page. */
+  private broadcastPresence(): void {
+    const sockets = this.authedSockets()
+    const payload = JSON.stringify({ t: 'presence', devices: sockets.length } satisfies ServerMessage)
+    for (const ws of sockets) {
+      try {
+        ws.send(payload)
+      } catch {
+        // socket died between the filter and the send: the next event corrects the count
+      }
+    }
   }
 
   private broadcast(message: ServerMessage): void {

@@ -2,7 +2,7 @@ import type { AppState, WeekEntry } from '../types'
 import { entriesForWeek } from '../schedule'
 import { DAY_NAMES, daysOfWeek, toDayIndex, weekLabelLong } from '../week'
 import { initials, patternFor } from '../palette'
-import { TIME_SLOTS } from '../timeofday'
+import { TIME_SLOTS, slotLabel } from '../timeofday'
 import type { PrintOptions } from './PrintPanel'
 
 export type PrintLayout = 'grid' | 'cards'
@@ -102,7 +102,7 @@ function PrintGrid({ state, weekStart, entries, options }: {
       ))}
       {TIME_SLOTS.map((slot) => (
         <div key={slot.key} className="pr-grid-row">
-          <div className="pr-grid-slot">{slot.label}</div>
+          <div className="pr-grid-slot">{slotLabel(state.timeOfDayLabels, slot.key)}</div>
           {cols.map((d) => (
             <div key={d.toISOString()} className="pr-grid-cell">
               {entries

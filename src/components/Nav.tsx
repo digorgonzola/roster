@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, Printer } from 'lucide-react'
 import { weekLabel } from '../week'
 
-export type Page = 'week' | 'chores' | 'people' | 'print'
+export type Page = 'week' | 'chores' | 'people' | 'settings' | 'print'
 
 interface Props {
   page: Page
@@ -16,6 +16,7 @@ const LINKS: { page: Page; label: string }[] = [
   { page: 'week', label: 'This week' },
   { page: 'chores', label: 'Chores' },
   { page: 'people', label: 'People' },
+  { page: 'settings', label: 'Settings' },
 ]
 
 export function Nav({ page, onNavigate, weekStart, onPrevWeek, onThisWeek, onNextWeek }: Props) {

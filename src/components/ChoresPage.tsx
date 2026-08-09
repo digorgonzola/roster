@@ -4,7 +4,7 @@ import type { Chore, DayIndex, Effort, MonthlyNth, Person, TimeOfDay } from '../
 import { DAY_NAMES, DAY_NAMES_LONG, addDays, toDayIndex, weekNumber, ymd } from '../week'
 import { rotationOffsets, weeklyOccursOn } from '../schedule'
 import { assigneeForDate } from '../rotation'
-import { TIME_SLOTS } from '../timeofday'
+import { TIME_SLOTS, slotLabel } from '../timeofday'
 import { assigneeTag, choreRuleSummary, needsPerson } from '../labels'
 import { Avatar } from './Avatar'
 
@@ -20,6 +20,8 @@ interface Props {
   chores: Chore[]
   people: Person[]
   weekStart: Date
+  /** Household day-part names from Settings; defaults apply when missing. */
+  timeOfDayLabels?: Partial<Record<TimeOfDay, string>>
   selection: ChoreSelection
   onSelect: (sel: ChoreSelection) => void
   onSave: (chore: Chore) => void
@@ -138,7 +140,7 @@ function buildChore(draft: Draft, id: string): Chore {
   }
 }
 
-export function ChoresPage({ chores, people, weekStart, selection, onSelect, onSave, onDelete }: Props) {
+export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selection, onSelect, onSave, onDelete }: Props) {
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [error, setError] = useState('')
@@ -229,6 +231,7 @@ export function ChoresPage({ chores, people, weekStart, selection, onSelect, onS
             people={people}
             chores={chores}
             weekStart={weekStart}
+            timeOfDayLabels={timeOfDayLabels}
             isNew={selection === 'new'}
             editingName={editingChore?.name}
             error={error}
@@ -249,6 +252,7 @@ interface EditorProps {
   people: Person[]
   chores: Chore[]
   weekStart: Date
+  timeOfDayLabels?: Partial<Record<TimeOfDay, string>>
   isNew: boolean
   editingName?: string
   error: string
@@ -257,7 +261,7 @@ interface EditorProps {
   onDelete?: () => void
 }
 
-function Editor({ draft, set, setDraft, people, chores, weekStart, isNew, editingName, error, onSubmit, onCancel, onDelete }: EditorProps) {
+function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabels, isNew, editingName, error, onSubmit, onCancel, onDelete }: EditorProps) {
   const toggleDay = (d: DayIndex) =>
     setDraft((prev) => prev && ({
       ...prev,
@@ -322,7 +326,7 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, isNew, editin
             {TIME_SLOTS.map((s) => (
               <label key={s.key} className="seg-opt" title={s.hint}>
                 <input type="radio" name="timeofday" checked={draft.timeOfDay === s.key} onChange={() => set('timeOfDay', s.key)} />
-                {s.label}
+                {slotLabel(timeOfDayLabels, s.key)}
               </label>
             ))}
           </span>

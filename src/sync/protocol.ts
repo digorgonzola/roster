@@ -60,3 +60,5 @@ export type ServerMessage =
   | { t: 'ok'; rev: number }
   /** An op applied to the room (any client, including the receiver). */
   | { t: 'op'; rev: number; op: Op }
+  /** How many devices hold an authed socket, sent on every join/leave. */
+  | { t: 'presence'; devices: number }

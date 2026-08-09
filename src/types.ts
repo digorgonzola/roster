@@ -89,6 +89,11 @@ export interface AppState {
   chores: Chore[]
   /** 0 = week starts Sunday, 1 = week starts Monday. */
   weekStartsOn: 0 | 1
+  /**
+   * Household names for the day-parts, e.g. morning → "Before school".
+   * Missing keys fall back to the defaults in timeofday.ts.
+   */
+  timeOfDayLabels?: Partial<Record<TimeOfDay, string>>
   /** Completed occurrences, keyed 'YYYY-MM-DD' → chore ids done that day. */
   done: Record<string, string[]>
 }

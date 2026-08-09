@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AppState, Chore, DayIndex, Person } from './types'
+import type { AppState, Chore, DayIndex, Person, TimeOfDay } from './types'
 import { load, save, exportJson, importJson, clearStored, seedState } from './storage'
 import { newId } from './ids'
 import { applyOp, type Op } from './ops'
@@ -15,6 +15,7 @@ import { Nav, type Page } from './components/Nav'
 import { Dashboard, type DashboardView } from './components/Dashboard'
 import { ChoresPage, type ChoreSelection } from './components/ChoresPage'
 import { PeoplePage } from './components/PeoplePage'
+import { SettingsPage } from './components/SettingsPage'
 import { PrintPanel, type PrintOptions } from './components/PrintPanel'
 import { PrintRoster, type PrintLayout } from './components/PrintRoster'
 import { AssignSheet, type AssignChoice, type AssignTarget } from './components/AssignSheet'
@@ -62,6 +63,7 @@ export default function App() {
   })
   const [shareBusy, setShareBusy] = useState(false)
   const [shareError, setShareError] = useState('')
+  const [deviceCount, setDeviceCount] = useState<number | null>(null)
 
   // On boot: join a share link if one is in the fragment. Runs once.
   useEffect(() => {
@@ -84,8 +86,12 @@ export default function App() {
     sync.start({
       onRemoteOp: (op: Op) => setState((s) => applyOp(s, op)),
       onSnapshot: (remote, pending) => setState(pending.reduce(applyOp, remote)),
+      onPresence: setDeviceCount,
     })
-    return () => sync.stop()
+    return () => {
+      sync.stop()
+      setDeviceCount(null)
+    }
   }, [sync])
 
   const startSharing = async () => {
@@ -188,14 +194,23 @@ export default function App() {
       onAdd={addPerson}
       onUpdate={updatePerson}
       onDelete={deletePerson}
+    />
+  )
+
+  const settingsPage = (mobile: boolean) => (
+    <SettingsPage
+      state={state}
+      mobile={mobile}
+      onWeekStartsOn={(v) => dispatch({ t: 'setWeekStartsOn', v })}
+      onRenameSlot={(slot: TimeOfDay, label: string) => dispatch({ t: 'setTimeSlotLabel', slot, label })}
       onExport={() => exportJson(state)}
       onImport={doImport}
       onReset={resetAll}
-      onWeekStartsOn={(v) => dispatch({ t: 'setWeekStartsOn', v })}
       importError={importError}
       shareLink={sync ? shareLink(sync.config) : null}
       shareBusy={shareBusy}
       shareError={shareError}
+      deviceCount={deviceCount}
       onShare={() => void startSharing()}
       onStopShare={stopSharing}
     />
@@ -206,6 +221,7 @@ export default function App() {
       chores={state.chores}
       people={state.people}
       weekStart={weekStart}
+      timeOfDayLabels={state.timeOfDayLabels}
       selection={choreSelection}
       onSelect={setChoreSelection}
       onSave={saveChore}
@@ -241,6 +257,7 @@ export default function App() {
             )}
             {mobileTab === 'chores' && choresPage}
             {mobileTab === 'people' && peoplePage}
+            {mobileTab === 'settings' && settingsPage(true)}
           </main>
           <MobileTabs tab={mobileTab} onChange={setMobileTab} />
         </div>
@@ -271,6 +288,7 @@ export default function App() {
             )}
             {page === 'chores' && choresPage}
             {page === 'people' && peoplePage}
+            {page === 'settings' && settingsPage(false)}
             {page === 'print' && (
               <PrintPanel
                 layout={printLayout}
