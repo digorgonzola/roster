@@ -25,24 +25,50 @@ export function weeklyOccursOn(s: WeeklySchedule, date: Date): boolean {
  * Entries are sorted by day, then time of day, then chore name, for stable display.
  */
 /**
- * Dense phase offsets so rotated chores stagger instead of colliding. Daily and
- * weekly rotations are numbered in *separate* sequences because they advance on
- * different clocks (day number vs week number): each group gets 0, 1, 2, … so
- * that, for up to (number of people) chores in a group, they map to different
- * people — daily chores to different people each day, weekly chores to different
- * people each week — and each chore still rotates through everyone over time.
+ * Phase offsets so rotated chores stagger instead of colliding. Daily, weekly
+ * and monthly rotations are numbered in *separate* sequences because they
+ * advance on different clocks (day number vs week number): each group gets
+ * 0, 1, 2, … so that, for up to (number of people) chores in a group, they map
+ * to different people, and each chore still rotates through everyone over time.
+ *
+ * Since schema v2 the offset is frozen on the chore (`rotationOffset`) at
+ * creation or migration, so reordering the chores array never reassigns
+ * people. The dense fallback below only covers in-memory chores that have no
+ * stored offset yet (e.g. the editor's rotate preview).
  */
-export function rotationOffsets(chores: Chore[]): Map<number, number> {
-  const offsets = new Map<number, number>()
-  let dailyK = 0
-  let weeklyK = 0
-  let monthlyK = 0
+type RotationGroup = 'daily' | 'weekly' | 'monthly'
+
+function rotationGroup(c: Chore): RotationGroup {
+  if (c.schedule.kind === 'monthly') return 'monthly'
+  return c.assignment.mode === 'rotate' && c.assignment.period === 'daily' ? 'daily' : 'weekly'
+}
+
+export function rotationOffsets(chores: Chore[]): Map<string, number> {
+  const offsets = new Map<string, number>()
+  const next: Record<RotationGroup, number> = { daily: 0, weekly: 0, monthly: 0 }
   for (const c of chores) {
-    if (c.assignment.mode !== 'rotate') continue
-    if (c.schedule.kind === 'monthly') offsets.set(c.id, monthlyK++)
-    else offsets.set(c.id, c.assignment.period === 'daily' ? dailyK++ : weeklyK++)
+    if (c.assignment.mode !== 'rotate' || c.rotationOffset === undefined) continue
+    offsets.set(c.id, c.rotationOffset)
+    const g = rotationGroup(c)
+    next[g] = Math.max(next[g], c.rotationOffset + 1)
+  }
+  for (const c of chores) {
+    if (c.assignment.mode !== 'rotate' || c.rotationOffset !== undefined) continue
+    offsets.set(c.id, next[rotationGroup(c)]++)
   }
   return offsets
+}
+
+/** The offset a new rotating chore should freeze: next free slot in its group. */
+export function nextRotationOffset(existing: Chore[], chore: Chore): number {
+  const g = rotationGroup(chore)
+  let next = 0
+  for (const c of existing) {
+    if (c.assignment.mode !== 'rotate' || rotationGroup(c) !== g) continue
+    const offset = c.rotationOffset
+    if (offset !== undefined && offset >= next) next = offset + 1
+  }
+  return next
 }
 
 export function entriesForWeek(state: AppState, weekStart: Date): WeekEntry[] {

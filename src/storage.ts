@@ -1,68 +1,74 @@
 import type { AppState } from './types'
 import { weekNumber } from './week'
+import { migrate } from './migrate'
 
 const KEY = 'roster.state.v1'
 
 /** A small, friendly example so the app isn't blank on first open. */
 export function seedState(): AppState {
   const people = [
-    { id: 1, name: 'Alex', color: '#1f6feb' },
-    { id: 2, name: 'Sam', color: '#e3742a' },
-    { id: 3, name: 'Jordan', color: '#2a9d4a' },
+    { id: 'p-alex', name: 'Alex', color: '#1f6feb' },
+    { id: 'p-sam', name: 'Sam', color: '#e3742a' },
+    { id: 'p-jordan', name: 'Jordan', color: '#2a9d4a' },
   ]
   return {
+    schemaVersion: 2,
     people,
     weekStartsOn: 1,
     done: {},
     chores: [
       {
-        id: 1,
+        id: 'c-dishwasher',
         name: 'Empty dishwasher',
         effort: 'light',
         timeOfDay: 'morning',
         schedule: { kind: 'weekly', days: [0, 1, 2, 3, 4, 5, 6] },
-        assignment: { mode: 'rotate', period: 'daily', personIds: [1, 2, 3] },
+        assignment: { mode: 'rotate', period: 'daily', personIds: ['p-alex', 'p-sam', 'p-jordan'] },
+        rotationOffset: 0,
       },
       {
-        id: 2,
+        id: 'c-bins',
         name: 'Take out bins',
         notes: 'Kerbside collection',
         effort: 'light',
         timeOfDay: 'evening',
         schedule: { kind: 'weekly', days: [2] },
-        assignment: { mode: 'rotate', period: 'weekly', personIds: [1, 2] },
+        assignment: { mode: 'rotate', period: 'weekly', personIds: ['p-alex', 'p-sam'] },
+        rotationOffset: 0,
       },
       {
-        id: 3,
+        id: 'c-vacuum',
         name: 'Vacuum living areas',
         effort: 'medium',
         timeOfDay: 'afternoon',
         schedule: { kind: 'weekly', days: [5] },
-        assignment: { mode: 'manual', personId: 2 },
+        assignment: { mode: 'manual', personId: 'p-sam' },
       },
       {
-        id: 4,
+        id: 'c-lawn',
         name: 'Mow lawn',
         effort: 'heavy',
         timeOfDay: 'afternoon',
         schedule: { kind: 'weekly', days: [6] },
-        assignment: { mode: 'manual', personId: 3 },
+        assignment: { mode: 'manual', personId: 'p-jordan' },
       },
       {
-        id: 5,
+        id: 'c-toilets',
         name: 'Clean toilets',
         effort: 'medium',
         timeOfDay: 'afternoon',
         schedule: { kind: 'weekly', days: [5], intervalWeeks: 2, anchorWeek: weekNumber(new Date()) },
-        assignment: { mode: 'rotate', period: 'weekly', personIds: [1, 2, 3] },
+        assignment: { mode: 'rotate', period: 'weekly', personIds: ['p-alex', 'p-sam', 'p-jordan'] },
+        rotationOffset: 1,
       },
       {
-        id: 6,
+        id: 'c-bathroom',
         name: 'Deep clean bathroom',
         effort: 'heavy',
         timeOfDay: 'afternoon',
         schedule: { kind: 'monthly', weekday: 5, nth: 1 }, // first Saturday
-        assignment: { mode: 'rotate', period: 'weekly', personIds: [1, 2, 3] },
+        assignment: { mode: 'rotate', period: 'weekly', personIds: ['p-alex', 'p-sam', 'p-jordan'] },
+        rotationOffset: 0,
       },
     ],
   }
@@ -75,21 +81,12 @@ function isValid(x: unknown): x is AppState {
   return Array.isArray(s.people) && Array.isArray(s.chores)
 }
 
-/** Fill defaults for fields older saved states won't have (`done`). */
-function normalize(parsed: AppState): AppState {
-  return {
-    ...parsed,
-    weekStartsOn: parsed.weekStartsOn === 0 ? 0 : 1,
-    done: parsed.done && typeof parsed.done === 'object' ? parsed.done : {},
-  }
-}
-
 export function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (isValid(parsed)) return normalize(parsed)
+      if (isValid(parsed)) return migrate(parsed)
     }
   } catch {
     // fall through to seed
@@ -137,7 +134,7 @@ export function importJson(file: File): Promise<AppState> {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result))
-        if (isValid(parsed)) resolve(normalize(parsed))
+        if (isValid(parsed)) resolve(migrate(parsed))
         else reject(new Error('Not a valid roster file.'))
       } catch {
         reject(new Error('Could not read that file.'))

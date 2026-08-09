@@ -121,7 +121,7 @@ function PrintCards({ state, entries, options }: {
   entries: WeekEntry[]
   options: PrintOptions
 }) {
-  const byPerson = new Map<number | 'none', WeekEntry[]>()
+  const byPerson = new Map<string | 'none', WeekEntry[]>()
   for (const e of entries) {
     const key = e.assignee ? e.assignee.id : 'none'
     if (!byPerson.has(key)) byPerson.set(key, [])

@@ -8,8 +8,8 @@ import { Avatar } from './Avatar'
 interface Props {
   state: AppState
   person: Person | null
-  onPersonChange: (id: number) => void
-  onToggleDone: (date: string, choreId: number) => void
+  onPersonChange: (id: string) => void
+  onToggleDone: (date: string, choreId: string) => void
 }
 
 /** Mobile "my day": one family member's chores for today, tick to complete. */
