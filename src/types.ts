@@ -82,6 +82,8 @@ export interface AppState {
   chores: Chore[]
   /** 0 = week starts Sunday, 1 = week starts Monday. */
   weekStartsOn: 0 | 1
+  /** Completed occurrences, keyed 'YYYY-MM-DD' → chore ids done that day. */
+  done: Record<string, number[]>
 }
 
 /** A single expanded occurrence of a chore within a given week. */

@@ -1,74 +1,116 @@
 /* ============================================================
-   Print roster styling — used both in the on-screen preview
-   (.print-preview .print-root) and in the actual printout
-   (.print-only .print-root under @media print).
-   Designed to read correctly in grayscale: black on white,
-   strong borders, name + initials + fill pattern per person.
+   Print roster — 2a (A4 landscape weekly grid) and 2b (A4
+   portrait per-person cards). Used in the on-screen preview
+   and the real printout. Pure black ink on white: no accent,
+   no tints; person identity carries via swatch pattern +
+   initials so it survives a mono printer or photocopy.
    ============================================================ */
 
-.print-root { color: #000; background: #fff; font-family: system-ui, 'Segoe UI', Roboto, sans-serif; }
+.print-root {
+  color: #000; background: #fff;
+  font-family: 'Archivo', system-ui, sans-serif;
+  padding: 24px 28px;
+}
 
-.print-header { text-align: center; margin-bottom: 10px; }
-.print-header h1 { font-size: 20px; letter-spacing: .01em; }
-.print-week { margin: 2px 0 0; font-size: 13px; color: #333; }
-.print-empty { text-align: center; color: #444; padding: 20px; }
+/* — masthead — */
+.pr-masthead {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+  border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 0;
+}
+.pr-kicker {
+  display: block; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: #444; margin-bottom: 2px;
+}
+.pr-week { font-size: 38px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.05; margin: 0; }
+.pr-masthead-right { display: flex; align-items: center; gap: 14px; padding-bottom: 4px; }
+.pr-cut { font-size: 12px; color: #444; }
+.pr-key { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pr-key-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 
-/* ---- Grid layout ---- */
-.print-grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
-.print-grid th, .print-grid td { border: 1.4px solid #000; padding: 5px 4px; text-align: center; vertical-align: top; font-size: 12px; }
-.print-grid thead th { background: #e9e9e9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.print-grid .corner { width: 20%; text-align: left; }
-.print-grid .pg-date { font-weight: 400; color: #333; font-size: 11px; }
-.print-grid .pg-chore { text-align: left; font-weight: 700; background: #f4f4f4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.print-grid .pg-time { display: block; font-weight: 400; font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: .04em; margin-top: 1px; }
-.print-grid td.pg-off { background: repeating-linear-gradient(45deg, #fff 0 6px, #f2f2f2 6px 7px); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pr-swatch {
+  width: 22px; height: 22px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #000; background-color: var(--pc, #fff); position: relative; overflow: hidden;
+}
+.pr-swatch-label {
+  position: relative; font-size: 9px; font-weight: 800; line-height: 1;
+  background: rgba(255, 255, 255, 0.75); padding: 0 1px;
+}
 
-.pg-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.pg-tick { width: 15px; height: 15px; border: 1.5px solid #000; border-radius: 3px; }
-.pg-name { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.15; }
-.pg-name.none { color: #666; }
-.pg-swatch { width: 11px; height: 11px; border: 1px solid #000; border-radius: 2px; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* — shared entry bits — */
+.pr-tick {
+  width: 13px; height: 13px; flex: none; display: inline-block;
+  border: 1.4px solid #000; background: #fff; margin-top: 2px;
+}
+.pr-entry { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.35; }
+.pr-entry-initials { font-weight: 800; }
+.pr-entry-note { color: #555; font-style: italic; }
+.pr-empty { padding: 24px 0; color: #444; }
 
-/* ---- Per-person cards ---- */
-.print-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.print-card { border: 1.4px solid #000; border-radius: 8px; padding: 8px 10px; break-inside: avoid; }
-.pc-head { display: flex; align-items: center; gap: 8px; border-bottom: 1.4px solid #000; padding-bottom: 6px; margin-bottom: 6px; }
-.pc-swatch { width: 18px; height: 18px; border: 1.2px solid #000; border-radius: 3px; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.pc-name { font-weight: 700; font-size: 15px; flex: 1; }
-.pc-initials { font-size: 12px; border: 1px solid #000; border-radius: 4px; padding: 1px 5px; }
-.print-card.unassigned .pc-name { font-style: italic; }
+/* — 2a weekly grid — */
+.pr-grid { display: grid; grid-template-columns: 78px repeat(7, 1fr); }
+.pr-grid-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
+.pr-grid-corner { border-bottom: 2px solid #000; }
+.pr-grid-day {
+  padding: 8px 8px 6px; border-bottom: 2px solid #000; border-left: 1px solid #000;
+  display: flex; flex-direction: column;
+}
+.pr-grid-day b { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.pr-grid-day span { font-size: 11px; color: #444; }
+.pr-grid-slot {
+  padding: 8px 6px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #444;
+}
+.pr-grid-cell {
+  min-height: 88px; padding: 8px; display: flex; flex-direction: column; gap: 6px;
+  border-left: 1px solid #000; border-bottom: 1px solid #000;
+}
+.pr-grid-row:last-child .pr-grid-cell, .pr-grid-row:last-child .pr-grid-slot { border-bottom: 2px solid #000; }
+.pr-grid-slot { border-bottom: 1px solid #000; }
 
-.pc-list { list-style: none; margin: 0; padding: 0; }
-.pc-list li { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; border-bottom: 1px dotted #bbb; font-size: 13px; }
-.pc-list li:last-child { border-bottom: 0; }
-.pc-tick { width: 13px; height: 13px; border: 1.4px solid #000; border-radius: 3px; flex: 0 0 auto; position: relative; top: 2px; }
-.pc-day { font-weight: 700; width: 34px; flex: 0 0 auto; }
-.pc-time { width: 62px; flex: 0 0 auto; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #333; }
-.pc-chore { flex: 1; }
-.pc-note { color: #555; font-style: italic; font-size: 11px; }
+/* — 2b per-person cards — */
+.pr-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  padding-top: 18px;
+}
+.pr-card { border: 2px solid #000; padding: 12px 14px; break-inside: avoid; min-height: 190px; }
+.pr-card-head {
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid #000; padding-bottom: 8px; margin-bottom: 8px;
+}
+.pr-card-name { font-size: 19px; font-weight: 800; flex: 1; }
+.pr-card-jobs { font-size: 12px; color: #444; }
+.pr-card-dayrow { display: flex; gap: 10px; padding: 3px 0; }
+.pr-card-day {
+  width: 34px; flex: none; font-size: 10px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase; padding-top: 3px;
+}
+.pr-card-lines { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.pr-card-line { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 1.35; }
+.pr-card-unassigned .pr-card-name { font-weight: 400; font-style: italic; }
 
-/* ---- Legend ---- */
-.print-legend { margin-top: 12px; padding-top: 8px; border-top: 1px solid #000; display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; align-items: center; }
-.pl-title { font-weight: 700; }
-.pl-item { display: inline-flex; align-items: center; gap: 5px; }
+/* — footer — */
+.pr-footer {
+  display: flex; justify-content: space-between; gap: 16px;
+  border-top: 2px solid #000; margin-top: 18px; padding-top: 8px;
+  font-size: 12px; color: #444;
+}
+.print-cards .pr-footer, .print-root.print-cards .pr-footer { border-top-width: 2px; }
+
+/* Grid layout draws its own bottom rule, so its footer needs no second one. */
+.print-grid .pr-footer { border-top: 0; }
 
 /* ============================================================
    Actual printing
    ============================================================ */
-@page { size: A4; margin: 12mm; }
-
 @media print {
   html, body { background: #fff; }
   .no-print { display: none !important; }
   .app { max-width: none; margin: 0; padding: 0; }
   .print-only { display: block !important; }
+  .print-root { padding: 0; }
 
-  /* Ensure colour swatches & pattern fills actually render on paper */
-  .swatch, .pc-swatch, .pg-swatch,
-  .print-grid thead th, .print-grid .pg-chore, .print-grid td.pg-off {
+  /* Pattern fills must actually reach the paper. */
+  .pr-swatch, .pr-tick {
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-
-  .print-card { break-inside: avoid; }
-  .print-grid tr { break-inside: avoid; }
+  .pr-card, .pr-grid-row { break-inside: avoid; }
 }

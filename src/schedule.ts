@@ -1,4 +1,4 @@
-import type { AppState, WeeklySchedule, WeekEntry } from './types'
+import type { AppState, Chore, WeeklySchedule, WeekEntry } from './types'
 import { assigneeForDate } from './rotation'
 import { addDays, isDateInWeek, isNthWeekdayOfMonth, parseYmd, toDayIndex, weekNumber, ymd } from './week'
 import { timeOrder } from './timeofday'
@@ -24,24 +24,30 @@ export function weeklyOccursOn(s: WeeklySchedule, date: Date): boolean {
  *
  * Entries are sorted by day, then time of day, then chore name, for stable display.
  */
-export function entriesForWeek(state: AppState, weekStart: Date): WeekEntry[] {
-  const entries: WeekEntry[] = []
-
-  // Dense phase offsets so rotated chores stagger instead of colliding. Daily and
-  // weekly rotations are numbered in *separate* sequences because they advance on
-  // different clocks (day number vs week number): each group gets 0, 1, 2, … so
-  // that, for up to (number of people) chores in a group, they map to different
-  // people — daily chores to different people each day, weekly chores to different
-  // people each week — and each chore still rotates through everyone over time.
+/**
+ * Dense phase offsets so rotated chores stagger instead of colliding. Daily and
+ * weekly rotations are numbered in *separate* sequences because they advance on
+ * different clocks (day number vs week number): each group gets 0, 1, 2, … so
+ * that, for up to (number of people) chores in a group, they map to different
+ * people — daily chores to different people each day, weekly chores to different
+ * people each week — and each chore still rotates through everyone over time.
+ */
+export function rotationOffsets(chores: Chore[]): Map<number, number> {
   const offsets = new Map<number, number>()
   let dailyK = 0
   let weeklyK = 0
   let monthlyK = 0
-  for (const c of state.chores) {
+  for (const c of chores) {
     if (c.assignment.mode !== 'rotate') continue
     if (c.schedule.kind === 'monthly') offsets.set(c.id, monthlyK++)
     else offsets.set(c.id, c.assignment.period === 'daily' ? dailyK++ : weeklyK++)
   }
+  return offsets
+}
+
+export function entriesForWeek(state: AppState, weekStart: Date): WeekEntry[] {
+  const entries: WeekEntry[] = []
+  const offsets = rotationOffsets(state.chores)
 
   for (const chore of state.chores) {
     const offset = offsets.get(chore.id) ?? 0
