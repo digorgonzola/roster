@@ -11,17 +11,6 @@ interface Props {
   onAdd: (name: string, color: string) => void
   onUpdate: (person: Person) => void
   onDelete: (id: string) => void
-  onExport: () => void
-  onImport: (file: File) => void
-  onReset: () => void
-  onWeekStartsOn: (v: 0 | 1) => void
-  importError: string
-  /** Null while this roster is not shared. */
-  shareLink: string | null
-  shareBusy: boolean
-  shareError: string
-  onShare: () => void
-  onStopShare: () => void
 }
 
 function patternLabel(color: string): string {
@@ -38,23 +27,10 @@ function choreCount(chores: Chore[], personId: string): number {
   }).length
 }
 
-export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete, onExport, onImport, onReset, onWeekStartsOn, importError, shareLink, shareBusy, shareError, onShare, onStopShare }: Props) {
+export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Props) {
   const [name, setName] = useState('')
   const [color, setColor] = useState<string>(() => nextColor(state.people.map((p) => p.color)))
-  const [copied, setCopied] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
-
-  const copyLink = async () => {
-    if (!shareLink) return
-    try {
-      await navigator.clipboard.writeText(shareLink)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // clipboard blocked: the link stays selectable in the input
-    }
-  }
 
   const entries = entriesForWeek(state, weekStart)
   const counts = new Map<string, number>()
@@ -169,73 +145,6 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete, onExpo
         <button className="btn btn-secondary add-person-btn" onClick={add}>Add</button>
       </div>
       <p className="text-muted footnote">Swatch is colour + pattern, so the printed roster still reads in black and white.</p>
-
-      <hr className="hr" />
-      <h6>Data</h6>
-      <div className="data-row">
-        <label className="week-start-field">
-          <span className="text-muted">Week starts</span>
-          <select
-            className="input"
-            value={state.weekStartsOn}
-            onChange={(e) => onWeekStartsOn(Number(e.target.value) as 0 | 1)}
-          >
-            <option value={1}>Monday</option>
-            <option value={0}>Sunday</option>
-          </select>
-        </label>
-        <button className="btn btn-secondary" onClick={onExport}>Export JSON</button>
-        <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>Import JSON</button>
-        <button className="btn btn-ghost" onClick={onReset}>Reset to example</button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) onImport(f)
-            e.target.value = ''
-          }}
-        />
-      </div>
-      {importError && <p className="editor-error">{importError}</p>}
-      <p className="text-muted footnote">Data is stored in this browser. Export to back up or move it to another device.</p>
-
-      <hr className="hr" />
-      <h6>Sharing</h6>
-      {shareLink ? (
-        <>
-          <div className="data-row">
-            <input
-              className="input share-link"
-              readOnly
-              value={shareLink}
-              onFocus={(e) => e.target.select()}
-              aria-label="Share link"
-            />
-            <button className="btn btn-secondary" onClick={() => void copyLink()}>
-              {copied ? 'Copied' : 'Copy link'}
-            </button>
-            <button className="btn btn-ghost" onClick={onStopShare}>Stop syncing</button>
-          </div>
-          <p className="text-muted footnote">
-            Anyone with this link can view and edit this roster. Open it on another device to sync.
-          </p>
-        </>
-      ) : (
-        <>
-          <div className="data-row">
-            <button className="btn btn-secondary" onClick={onShare} disabled={shareBusy}>
-              {shareBusy ? 'Starting…' : 'Share roster'}
-            </button>
-          </div>
-          <p className="text-muted footnote">
-            Create a private link that keeps this roster in sync between family devices.
-          </p>
-        </>
-      )}
-      {shareError && <p className="editor-error">{shareError}</p>}
     </div>
   )
 }

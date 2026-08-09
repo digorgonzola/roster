@@ -1,7 +1,7 @@
 import type { AppState, WeekEntry } from '../types'
 import { entriesForWeek } from '../schedule'
 import { DAY_NAMES, daysOfWeek, toDayIndex, ymd } from '../week'
-import { TIME_SLOTS } from '../timeofday'
+import { TIME_SLOTS, slotLabel } from '../timeofday'
 import { isEntryDone } from '../labels'
 import { Avatar } from './Avatar'
 
@@ -102,7 +102,7 @@ export function Dashboard(props: Props) {
             })}
             {TIME_SLOTS.map((slot) => (
               <div key={slot.key} className="wg-row">
-                <div className="wg-slot">{slot.label}</div>
+                <div className="wg-slot">{slotLabel(state.timeOfDayLabels, slot.key)}</div>
                 {cols.map((d) => {
                   const isToday = ymd(d) === todayStr
                   const cellEntries = entries.filter(

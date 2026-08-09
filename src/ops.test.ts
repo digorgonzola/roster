@@ -129,4 +129,16 @@ describe('applyOp', () => {
     const fresh = base()
     expect(applyOp(s, { t: 'replaceState', state: fresh })).toBe(fresh)
   })
+
+  it('setTimeSlotLabel renames a slot and an empty label restores the default', () => {
+    let s = base()
+    s = applyOp(s, { t: 'setTimeSlotLabel', slot: 'morning', label: '  Before school ' })
+    expect(s.timeOfDayLabels).toEqual({ morning: 'Before school' })
+    s = applyOp(s, { t: 'setTimeSlotLabel', slot: 'evening', label: 'Bedtime' })
+    expect(s.timeOfDayLabels).toEqual({ morning: 'Before school', evening: 'Bedtime' })
+    s = applyOp(s, { t: 'setTimeSlotLabel', slot: 'morning', label: '' })
+    expect(s.timeOfDayLabels).toEqual({ evening: 'Bedtime' })
+    s = applyOp(s, { t: 'setTimeSlotLabel', slot: 'evening', label: '   ' })
+    expect(s.timeOfDayLabels).toBeUndefined()
+  })
 })

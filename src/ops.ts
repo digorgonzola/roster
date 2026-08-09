@@ -1,4 +1,4 @@
-import type { AppState, Chore, DayIndex } from './types'
+import type { AppState, Chore, DayIndex, TimeOfDay } from './types'
 import { parseYmd, toDayIndex } from './week'
 import { nextRotationOffset } from './schedule'
 
@@ -22,6 +22,8 @@ export type Op =
   /** Idempotent set (not a toggle), safe under replay and duplicate delivery. */
   | { t: 'setDone'; date: string; choreId: string; done: boolean }
   | { t: 'setWeekStartsOn'; v: 0 | 1 }
+  /** Rename a day-part heading. An empty label restores the default. */
+  | { t: 'setTimeSlotLabel'; slot: TimeOfDay; label: string }
   /** Import / reset. Clobbers concurrent edits by design; UI confirms first. */
   | { t: 'replaceState'; state: AppState }
 
@@ -94,6 +96,18 @@ export function applyOp(s: AppState, op: Op): AppState {
 
     case 'setWeekStartsOn':
       return { ...s, weekStartsOn: op.v }
+
+    case 'setTimeSlotLabel': {
+      const labels = { ...s.timeOfDayLabels }
+      const label = op.label.trim()
+      if (label) labels[op.slot] = label
+      else delete labels[op.slot]
+      if (Object.keys(labels).length === 0) {
+        const { timeOfDayLabels: _drop, ...rest } = s
+        return rest
+      }
+      return { ...s, timeOfDayLabels: labels }
+    }
 
     case 'replaceState':
       return op.state

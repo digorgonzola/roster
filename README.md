@@ -45,15 +45,18 @@ every run. In CI, install with `pnpm install --frozen-lockfile`.
 - **This week** — grid of who does what, with week navigation (‹ / This week / ›).
 - **Print roster** — choose **Weekly grid** or **Per-person cards**, then
   *Print / Save PDF*. Layout is A4 with tick boxes and a person key.
+- **Settings** — pick the week start day, rename the time-of-day row headings,
+  share the roster between devices, and export / import / reset the data.
 
 ## Data & backup
 
-Everything is stored in your browser's `localStorage`. Use **Export JSON** to back
-up or move the roster to another device, and **Import JSON** to restore it.
+Everything is stored in your browser's `localStorage`. Use **Export JSON** (on
+the Settings page) to back up or move the roster to another device, and
+**Import JSON** to restore it.
 
 ## Sharing
 
-**Share roster** (on the People page) creates a private link that keeps the
+**Share roster** (on the Settings page) creates a private link that keeps the
 roster in sync between devices. The link holds a random secret, and anyone
 with the link can view and edit that one roster. Shared rosters live in a
 Cloudflare Durable Object. **Stop syncing** disconnects the device and keeps

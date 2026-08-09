@@ -1,4 +1,4 @@
-export type MobileTab = 'today' | 'week' | 'chores' | 'people'
+export type MobileTab = 'today' | 'week' | 'chores' | 'people' | 'settings'
 
 interface Props {
   tab: MobileTab
@@ -10,6 +10,7 @@ const TABS: { key: MobileTab; label: string }[] = [
   { key: 'week', label: 'Week' },
   { key: 'chores', label: 'Chores' },
   { key: 'people', label: 'People' },
+  { key: 'settings', label: 'Settings' },
 ]
 
 export function MobileTabs({ tab, onChange }: Props) {

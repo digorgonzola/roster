@@ -48,6 +48,11 @@ export interface SyncHandlers {
    * acknowledged yet: re-apply them on top (`pending.reduce(applyOp, state)`).
    */
   onSnapshot: (state: AppState, pending: Op[]) => void
+  /**
+   * Connected-device count from the room. Null while the push channel is
+   * down, when the count is unknown.
+   */
+  onPresence?: (devices: number | null) => void
 }
 
 export function loadShareConfig(): ShareConfig | null {
@@ -251,6 +256,10 @@ export class SyncClient {
         } else {
           void this.refreshSnapshot().catch(() => {})
         }
+        return
+      }
+      if (msg.t === 'presence') {
+        this.handlers?.onPresence?.(msg.devices)
       }
     }
 
@@ -258,6 +267,7 @@ export class SyncClient {
       if (this.ws !== ws) return
       this.ws = null
       this.wsUp = false
+      this.handlers?.onPresence?.(null)
       if (this.stopped) return
       this.setPolling(true)
       this.reconnectTimer = setTimeout(() => this.connect(), this.backoffMs)
