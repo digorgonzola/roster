@@ -15,20 +15,13 @@
   },
   "migrations": [
     // SQLite-backed classes: required for Durable Objects on the free plan.
+    // NOTE: branch builds (wrangler versions upload) cannot apply a PENDING
+    // DO migration (Cloudflare error 10211). This migration is already
+    // applied to the deployed Worker, so version uploads pass. Any FUTURE
+    // migration added here will fail branch builds until a production
+    // deploy applies it. Do not point branch builds at `wrangler deploy`:
+    // Workers Builds pins the Worker name, ignores a different env name,
+    // and full-deploys the branch to production.
     { "tag": "v1", "new_sqlite_classes": ["RosterRoom"] }
-  ],
-  "env": {
-    // Branch previews. Version uploads cannot apply Durable Object
-    // migrations (Cloudflare error 10211), so non-production branches must
-    // run a full deploy against a separate Worker instead:
-    //   npx wrangler deploy --env preview
-    // This deploys `roster-preview` with its own isolated Durable Objects.
-    // Set that as the non-production deploy command in the Workers Builds
-    // settings. `assets` and `main` are inherited; DO bindings are not.
-    "preview": {
-      "durable_objects": {
-        "bindings": [{ "name": "ROOMS", "class_name": "RosterRoom" }]
-      }
-    }
-  }
+  ]
 }
