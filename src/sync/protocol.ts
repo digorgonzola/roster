@@ -44,3 +44,19 @@ export interface OpResponse {
 }
 
 export const ROSTER_KEY_HEADER = 'X-Roster-Key'
+
+// ---- WebSocket push channel (GET /api/rooms/:roomId/ws) --------------------
+//
+// The socket is receive-only for roster data: clients still send ops over
+// HTTP POST /op. The browser WebSocket API cannot set headers, so the first
+// client message carries the key instead (never in the URL).
+
+/** Client to server. */
+export type ClientMessage = { t: 'auth'; key: string }
+
+/** Server to client. */
+export type ServerMessage =
+  /** Auth accepted. The client refetches the snapshot when rev is ahead. */
+  | { t: 'ok'; rev: number }
+  /** An op applied to the room (any client, including the receiver). */
+  | { t: 'op'; rev: number; op: Op }

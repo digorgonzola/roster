@@ -22,6 +22,14 @@ const base = (): AppState => ({
 })
 
 describe('applyOp', () => {
+  it('addPerson tolerates duplicate delivery (op echo after optimistic apply)', () => {
+    let s = base()
+    const op = { t: 'addPerson', person: { id: 'p3', name: 'Jo', color: '#333' } } as const
+    s = applyOp(s, op)
+    s = applyOp(s, op)
+    expect(s.people.filter((p) => p.id === 'p3')).toHaveLength(1)
+  })
+
   it('adds, updates and deletes people', () => {
     let s = base()
     s = applyOp(s, { t: 'addPerson', person: { id: 'p3', name: 'Jo', color: '#333' } })

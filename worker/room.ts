@@ -2,7 +2,14 @@ import { DurableObject } from 'cloudflare:workers'
 import type { AppState } from '../src/types'
 import { applyOp, type Op } from '../src/ops'
 import { migrate } from '../src/migrate'
-import type { InitRequest, OpRequest, OpResponse, Snapshot } from '../src/sync/protocol'
+import type {
+  ClientMessage,
+  InitRequest,
+  OpRequest,
+  OpResponse,
+  ServerMessage,
+  Snapshot,
+} from '../src/sync/protocol'
 import { ROSTER_KEY_HEADER } from '../src/sync/protocol'
 import type { Env } from './env'
 
@@ -25,7 +32,61 @@ export class RosterRoom extends DurableObject<Env> {
     if (route === 'POST /init') return this.init(request)
     if (route === 'GET /state') return this.snapshot(request)
     if (route === 'POST /op') return this.op(request)
+    if (route === 'GET /ws') return this.upgrade(request)
     return json({ error: 'not found' }, 404)
+  }
+
+  /**
+   * Push channel. The socket is accepted through the Hibernation API so an
+   * idle room costs nothing; it starts unauthenticated and receives no
+   * broadcasts until the first message presents the key.
+   */
+  private upgrade(request: Request): Response {
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return json({ error: 'expected websocket' }, 426)
+    }
+    const pair = new WebSocketPair()
+    this.ctx.acceptWebSocket(pair[1])
+    pair[1].serializeAttachment({ authed: false })
+    return new Response(null, { status: 101, webSocket: pair[0] })
+  }
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    const attachment = (ws.deserializeAttachment() ?? {}) as { authed?: boolean }
+    if (attachment.authed) return // receive-only channel: ignore chatter
+
+    let auth: ClientMessage | null = null
+    try {
+      auth = JSON.parse(typeof message === 'string' ? message : '') as ClientMessage
+    } catch {
+      // fall through to close below
+    }
+    const stored = await this.ctx.storage.get<string>('keyHash')
+    const fails = (await this.ctx.storage.get<number>('fails')) ?? 0
+    if (fails >= FAIL_LIMIT) await scheduler.wait(FAIL_DELAY_MS)
+
+    if (
+      auth?.t === 'auth' &&
+      typeof auth.key === 'string' &&
+      stored !== undefined &&
+      (await hashesMatch(auth.key, stored))
+    ) {
+      if (fails > 0) await this.ctx.storage.put('fails', 0)
+      ws.serializeAttachment({ authed: true })
+      const rev = (await this.ctx.storage.get<number>('rev')) ?? 0
+      ws.send(JSON.stringify({ t: 'ok', rev } satisfies ServerMessage))
+      return
+    }
+    await this.ctx.storage.put('fails', fails + 1)
+    ws.close(1008, 'unauthorized')
+  }
+
+  private broadcast(message: ServerMessage): void {
+    const payload = JSON.stringify(message)
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = (ws.deserializeAttachment() ?? {}) as { authed?: boolean }
+      if (attachment.authed) ws.send(payload)
+    }
   }
 
   /** First caller sets the key hash and seed state. Later calls get 409. */
@@ -67,6 +128,7 @@ export class RosterRoom extends DurableObject<Env> {
     const next = applyOp(state, op)
     const nextRev = rev + 1
     await this.ctx.storage.put({ state: next, rev: nextRev })
+    this.broadcast({ t: 'op', rev: nextRev, op })
     return json({ rev: nextRev, stale: body.baseRev !== rev } satisfies OpResponse, 200)
   }
 

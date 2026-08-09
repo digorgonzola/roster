@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AppState, Chore, DayIndex, Person } from './types'
 import { load, save, exportJson, importJson, clearStored, seedState } from './storage'
 import { newId } from './ids'
@@ -62,34 +62,14 @@ export default function App() {
   })
   const [shareBusy, setShareBusy] = useState(false)
   const [shareError, setShareError] = useState('')
-  /** Last server revision this client has seen. Meaningless while solo. */
-  const revRef = useRef(0)
 
-  const applySnapshot = (client: SyncClient) =>
-    client
-      .fetchSnapshot()
-      .then(({ rev, state: remote }) => {
-        if (rev > revRef.current) {
-          revRef.current = rev
-          setState(remote)
-        }
-      })
-      .catch(() => {
-        // offline or room gone: keep the local copy, the next poll retries
-      })
-
-  // On boot: join a share link if one is in the fragment, else refresh an
-  // existing share. Runs once.
+  // On boot: join a share link if one is in the fragment. Runs once.
   useEffect(() => {
     const linkConfig = parseShareLink(location.hash)
-    if (!linkConfig) {
-      if (sync) void applySnapshot(sync)
-      return
-    }
+    if (!linkConfig) return
     history.replaceState(null, '', location.pathname + location.search)
     SyncClient.join(linkConfig)
       .then(({ client, snapshot }) => {
-        revRef.current = snapshot.rev
         setState(snapshot.state)
         setSync(client)
       })
@@ -97,21 +77,22 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Short-poll while shared. PR3 replaces this with a WebSocket push.
+  // While shared: the client pushes remote ops (WebSocket, with a slow poll
+  // as fallback) and delivers snapshots rebased over the pending queue.
   useEffect(() => {
     if (!sync) return
-    const id = setInterval(() => void applySnapshot(sync), 3000)
-    return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    sync.start({
+      onRemoteOp: (op: Op) => setState((s) => applyOp(s, op)),
+      onSnapshot: (remote, pending) => setState(pending.reduce(applyOp, remote)),
+    })
+    return () => sync.stop()
   }, [sync])
 
   const startSharing = async () => {
     setShareBusy(true)
     setShareError('')
     try {
-      const client = await SyncClient.create(state)
-      revRef.current = 1
-      setSync(client)
+      setSync(await SyncClient.create(state))
     } catch {
       setShareError('Could not start sharing. Check your connection and try again.')
     } finally {
@@ -120,8 +101,8 @@ export default function App() {
   }
 
   const stopSharing = () => {
+    sync?.stop()
     clearShareConfig()
-    revRef.current = 0
     setSync(null)
   }
 
@@ -134,20 +115,12 @@ export default function App() {
 
   /**
    * Single write path: every mutation is an Op through the shared reducer,
-   * applied locally first (optimistic) and then sent to the room when shared.
+   * applied locally first (optimistic). When shared, the op joins the
+   * client's persisted queue and replays in order once the room is reachable.
    */
   const dispatch = (op: Op) => {
     setState((s) => applyOp(s, op))
-    if (!sync) return
-    sync
-      .send(op, revRef.current)
-      .then((res) => {
-        revRef.current = res.rev
-        if (res.stale) void applySnapshot(sync)
-      })
-      .catch(() => {
-        // offline: the local copy keeps the change; PR3 adds the replay queue
-      })
+    sync?.push(op)
   }
 
   // ---- People ----

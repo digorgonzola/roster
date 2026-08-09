@@ -28,6 +28,10 @@ export type Op =
 export function applyOp(s: AppState, op: Op): AppState {
   switch (op.t) {
     case 'addPerson':
+      // Upsert: duplicate delivery (op echo after an optimistic apply) is a no-op.
+      if (s.people.some((p) => p.id === op.person.id)) {
+        return { ...s, people: s.people.map((p) => (p.id === op.person.id ? op.person : p)) }
+      }
       return { ...s, people: [...s.people, op.person] }
 
     case 'updatePerson':
