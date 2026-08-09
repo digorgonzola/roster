@@ -8,3 +8,6 @@ dist
 .env.*
 .mcp.json
 *.local.json
+
+# wrangler local dev state
+.wrangler/

@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppState, Chore, DayIndex, Person } from './types'
 import { load, save, exportJson, importJson, clearStored, seedState } from './storage'
 import { newId } from './ids'
 import { applyOp, type Op } from './ops'
+import {
+  SyncClient,
+  clearShareConfig,
+  loadShareConfig,
+  parseShareLink,
+  shareLink,
+} from './sync/client'
 import { addDays, startOfWeek, toDayIndex } from './week'
 import { Nav, type Page } from './components/Nav'
 import { Dashboard, type DashboardView } from './components/Dashboard'
@@ -48,6 +55,76 @@ export default function App() {
   const [importError, setImportError] = useState('')
   const isMobile = useIsMobile()
 
+  // ---- Sharing ----
+  const [sync, setSync] = useState<SyncClient | null>(() => {
+    const config = loadShareConfig()
+    return config ? new SyncClient(config) : null
+  })
+  const [shareBusy, setShareBusy] = useState(false)
+  const [shareError, setShareError] = useState('')
+  /** Last server revision this client has seen. Meaningless while solo. */
+  const revRef = useRef(0)
+
+  const applySnapshot = (client: SyncClient) =>
+    client
+      .fetchSnapshot()
+      .then(({ rev, state: remote }) => {
+        if (rev > revRef.current) {
+          revRef.current = rev
+          setState(remote)
+        }
+      })
+      .catch(() => {
+        // offline or room gone: keep the local copy, the next poll retries
+      })
+
+  // On boot: join a share link if one is in the fragment, else refresh an
+  // existing share. Runs once.
+  useEffect(() => {
+    const linkConfig = parseShareLink(location.hash)
+    if (!linkConfig) {
+      if (sync) void applySnapshot(sync)
+      return
+    }
+    history.replaceState(null, '', location.pathname + location.search)
+    SyncClient.join(linkConfig)
+      .then(({ client, snapshot }) => {
+        revRef.current = snapshot.rev
+        setState(snapshot.state)
+        setSync(client)
+      })
+      .catch(() => setShareError('Could not open that share link. Ask for a new one.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Short-poll while shared. PR3 replaces this with a WebSocket push.
+  useEffect(() => {
+    if (!sync) return
+    const id = setInterval(() => void applySnapshot(sync), 3000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sync])
+
+  const startSharing = async () => {
+    setShareBusy(true)
+    setShareError('')
+    try {
+      const client = await SyncClient.create(state)
+      revRef.current = 1
+      setSync(client)
+    } catch {
+      setShareError('Could not start sharing. Check your connection and try again.')
+    } finally {
+      setShareBusy(false)
+    }
+  }
+
+  const stopSharing = () => {
+    clearShareConfig()
+    revRef.current = 0
+    setSync(null)
+  }
+
   useEffect(() => { save(state) }, [state])
 
   const weekStart = useMemo(
@@ -56,10 +133,22 @@ export default function App() {
   )
 
   /**
-   * Single write path: every mutation is an Op through the shared reducer.
-   * The sync layer (when sharing lands) forwards the same ops to the server.
+   * Single write path: every mutation is an Op through the shared reducer,
+   * applied locally first (optimistic) and then sent to the room when shared.
    */
-  const dispatch = (op: Op) => setState((s) => applyOp(s, op))
+  const dispatch = (op: Op) => {
+    setState((s) => applyOp(s, op))
+    if (!sync) return
+    sync
+      .send(op, revRef.current)
+      .then((res) => {
+        revRef.current = res.rev
+        if (res.stale) void applySnapshot(sync)
+      })
+      .catch(() => {
+        // offline: the local copy keeps the change; PR3 adds the replay queue
+      })
+  }
 
   // ---- People ----
   const addPerson = (name: string, color: string) =>
@@ -87,6 +176,9 @@ export default function App() {
 
   // ---- Data ----
   const doImport = async (file: File) => {
+    if (sync && !confirm('This roster is shared. Importing replaces it for everyone. Continue?')) {
+      return
+    }
     try {
       dispatch({ t: 'replaceState', state: await importJson(file) })
       setImportError('')
@@ -126,8 +218,13 @@ export default function App() {
       onExport={() => exportJson(state)}
       onImport={doImport}
       onReset={resetAll}
-      onWeekStartsOn={(v) => setState((s) => ({ ...s, weekStartsOn: v }))}
+      onWeekStartsOn={(v) => dispatch({ t: 'setWeekStartsOn', v })}
       importError={importError}
+      shareLink={sync ? shareLink(sync.config) : null}
+      shareBusy={shareBusy}
+      shareError={shareError}
+      onShare={() => void startSharing()}
+      onStopShare={stopSharing}
     />
   )
 

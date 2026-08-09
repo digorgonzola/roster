@@ -16,6 +16,12 @@ interface Props {
   onReset: () => void
   onWeekStartsOn: (v: 0 | 1) => void
   importError: string
+  /** Null while this roster is not shared. */
+  shareLink: string | null
+  shareBusy: boolean
+  shareError: string
+  onShare: () => void
+  onStopShare: () => void
 }
 
 function patternLabel(color: string): string {
@@ -32,11 +38,23 @@ function choreCount(chores: Chore[], personId: string): number {
   }).length
 }
 
-export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete, onExport, onImport, onReset, onWeekStartsOn, importError }: Props) {
+export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete, onExport, onImport, onReset, onWeekStartsOn, importError, shareLink, shareBusy, shareError, onShare, onStopShare }: Props) {
   const [name, setName] = useState('')
   const [color, setColor] = useState<string>(() => nextColor(state.people.map((p) => p.color)))
+  const [copied, setCopied] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+
+  const copyLink = async () => {
+    if (!shareLink) return
+    try {
+      await navigator.clipboard.writeText(shareLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard blocked: the link stays selectable in the input
+    }
+  }
 
   const entries = entriesForWeek(state, weekStart)
   const counts = new Map<string, number>()
@@ -183,6 +201,41 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete, onExpo
       </div>
       {importError && <p className="editor-error">{importError}</p>}
       <p className="text-muted footnote">Data is stored in this browser. Export to back up or move it to another device.</p>
+
+      <hr className="hr" />
+      <h6>Sharing</h6>
+      {shareLink ? (
+        <>
+          <div className="data-row">
+            <input
+              className="input share-link"
+              readOnly
+              value={shareLink}
+              onFocus={(e) => e.target.select()}
+              aria-label="Share link"
+            />
+            <button className="btn btn-secondary" onClick={() => void copyLink()}>
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            <button className="btn btn-ghost" onClick={onStopShare}>Stop syncing</button>
+          </div>
+          <p className="text-muted footnote">
+            Anyone with this link can view and edit this roster. Open it on another device to sync.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="data-row">
+            <button className="btn btn-secondary" onClick={onShare} disabled={shareBusy}>
+              {shareBusy ? 'Starting…' : 'Share roster'}
+            </button>
+          </div>
+          <p className="text-muted footnote">
+            Create a private link that keeps this roster in sync between family devices.
+          </p>
+        </>
+      )}
+      {shareError && <p className="editor-error">{shareError}</p>}
     </div>
   )
 }

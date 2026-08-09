@@ -51,6 +51,17 @@ every run. In CI, install with `pnpm install --frozen-lockfile`.
 Everything is stored in your browser's `localStorage`. Use **Export JSON** to back
 up or move the roster to another device, and **Import JSON** to restore it.
 
+## Sharing
+
+**Share roster** (on the People page) creates a private link that keeps the
+roster in sync between devices. The link holds a random secret, and anyone
+with the link can view and edit that one roster. Shared rosters live in a
+Cloudflare Durable Object. **Stop syncing** disconnects the device and keeps
+its local copy. Without a share, the app never talks to a server.
+
 ## Tech
 
-Vite + React + TypeScript, plain CSS. No server, no accounts, no tracking.
+Vite + React + TypeScript, plain CSS. No accounts, no tracking. A small
+Cloudflare Worker stores shared rosters, only for people who opt in to
+sharing. For local development run `pnpm dev` (app) and `pnpm dev:worker`
+(API) side by side.
