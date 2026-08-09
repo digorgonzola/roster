@@ -20,22 +20,24 @@ const LINKS: { page: Page; label: string }[] = [
 
 export function Nav({ page, onNavigate, weekStart, onPrevWeek, onThisWeek, onNextWeek }: Props) {
   return (
-    <header className="nav no-print">
-      <span className="nav-brand">ROSTER</span>
-      <nav className="nav-links">
-        {LINKS.map((l) => (
-          <a
-            key={l.page}
-            href="#"
-            aria-current={page === l.page ? 'page' : undefined}
-            onClick={(e) => { e.preventDefault(); onNavigate(l.page) }}
-          >
-            {l.label}
-          </a>
-        ))}
-      </nav>
-      {page === 'week' && (
-        <>
+    <div className="no-print">
+      <header className="nav">
+        <span className="nav-brand">ROSTER</span>
+        <nav className="nav-links">
+          {LINKS.map((l) => (
+            <a
+              key={l.page}
+              href="#"
+              aria-current={page === l.page || (page === 'print' && l.page === 'week') ? 'page' : undefined}
+              onClick={(e) => { e.preventDefault(); onNavigate(l.page) }}
+            >
+              {l.label}
+            </a>
+          ))}
+        </nav>
+      </header>
+      {(page === 'week' || page === 'print') && (
+        <div className="week-bar">
           <div className="week-nav">
             <button className="btn btn-secondary btn-icon" onClick={onPrevWeek} aria-label="Previous week">
               <ChevronLeft size={16} />
@@ -46,12 +48,13 @@ export function Nav({ page, onNavigate, weekStart, onPrevWeek, onThisWeek, onNex
             </button>
             <span className="week-label">{weekLabel(weekStart)}</span>
           </div>
-          <button className="btn btn-primary" onClick={() => onNavigate('print')}>
-            <Printer size={16} /> Print roster
-          </button>
-        </>
+          {page === 'week' && (
+            <button className="btn btn-primary" onClick={() => onNavigate('print')}>
+              <Printer size={16} /> Print roster
+            </button>
+          )}
+        </div>
       )}
-      {page === 'print' && <span className="week-label">{weekLabel(weekStart)}</span>}
-    </header>
+    </div>
   )
 }
