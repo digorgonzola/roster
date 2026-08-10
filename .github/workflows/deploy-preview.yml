@@ -82,6 +82,10 @@ jobs:
       # one. Targets env.preview => Worker "roster-preview"; the production
       # Worker "roster" is not touched.
       - name: Deploy preview Worker
+        # Explicit `shell: bash` makes GitHub run bash with `-eo pipefail`
+        # (the implicit default shell has no pipefail), so a wrangler failure
+        # is not masked by the tee pipeline.
+        shell: bash
         run: pnpm exec wrangler deploy --env preview 2>&1 | tee deploy.log
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
