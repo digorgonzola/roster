@@ -310,6 +310,7 @@ export default function App() {
                 options={printOptions}
                 onOptionsChange={setPrintOptions}
                 onPrint={doPrint}
+                onBack={() => setPage('week')}
                 preview={
                   <PrintRoster state={state} weekStart={weekStart} layout={printLayout} options={printOptions} />
                 }
