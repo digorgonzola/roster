@@ -56,6 +56,7 @@ export function Dashboard(props: Props) {
 
   return (
     <div className="dashboard">
+      {state.chores.length > 0 && (
       <div className="filter-bar no-print">
         <span className="filter-label">Filter</span>
         <button
@@ -87,9 +88,19 @@ export function Dashboard(props: Props) {
           <span className="unassigned-count">Unassigned · {unassigned.length}</span>
         </span>
       </div>
+      )}
 
       <div className="dash-body">
-        {view === 'grid' ? (
+        {state.chores.length === 0 ? (
+          <div className="dash-empty">
+            <h4>No chores yet</h4>
+            <p className="text-muted">
+              This grid shows who does what across the week. Add the first
+              chore and it appears here on its scheduled days.
+            </p>
+            <button className="btn btn-primary" onClick={props.onAddChore}>Add a chore</button>
+          </div>
+        ) : view === 'grid' ? (
           <div className="week-grid">
             <div className="wg-corner" />
             {cols.map((d) => {
@@ -161,6 +172,7 @@ export function Dashboard(props: Props) {
           </div>
         )}
 
+        {state.chores.length > 0 && (
         <aside className="rail no-print">
           <RailLoad state={state} entries={entries} />
           <hr className="hr" />
@@ -183,6 +195,7 @@ export function Dashboard(props: Props) {
           <button className="btn btn-secondary btn-block" onClick={props.onAddChore}>Add chore</button>
           <button className="btn btn-secondary btn-block" onClick={props.onExport}>Export JSON</button>
         </aside>
+        )}
       </div>
     </div>
   )

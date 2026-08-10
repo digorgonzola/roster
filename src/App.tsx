@@ -64,6 +64,8 @@ export default function App() {
   const [shareBusy, setShareBusy] = useState(false)
   const [shareError, setShareError] = useState('')
   const [deviceCount, setDeviceCount] = useState<number | null>(null)
+  const [joining, setJoining] = useState(() => parseShareLink(location.hash) !== null)
+  const [joinError, setJoinError] = useState('')
 
   // On boot: join a share link if one is in the fragment. Runs once.
   useEffect(() => {
@@ -75,7 +77,8 @@ export default function App() {
         setState(snapshot.state)
         setSync(client)
       })
-      .catch(() => setShareError('Could not open that share link. Ask for a new one.'))
+      .catch(() => setJoinError('Could not open that share link. Ask for a new one.'))
+      .finally(() => setJoining(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -229,8 +232,18 @@ export default function App() {
     />
   )
 
+  const banner = joining ? (
+    <div className="app-banner no-print" role="status">Joining shared roster…</div>
+  ) : joinError ? (
+    <div className="app-banner app-banner-error no-print" role="alert">
+      {joinError}
+      <button className="btn btn-ghost" onClick={() => setJoinError('')}>Dismiss</button>
+    </div>
+  ) : null
+
   return (
     <div className="app">
+      {banner}
       {isMobile ? (
         <div className="mobile-shell no-print">
           <main className="mobile-main">
@@ -270,6 +283,7 @@ export default function App() {
             onPrevWeek={() => setAnchor((d) => addDays(d, -7))}
             onThisWeek={() => setAnchor(new Date())}
             onNextWeek={() => setAnchor((d) => addDays(d, 7))}
+            showPrint={state.chores.length > 0}
           />
           <main>
             {page === 'week' && (
