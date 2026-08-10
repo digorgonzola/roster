@@ -9,7 +9,7 @@
   "platformAutomerge": false,
   "automergeStrategy": "squash",
   "labels": ["dependencies"],
-  "minimumReleaseAge": "7 days",
+  "minimumReleaseAge": "8 days",
   "internalChecksFilter": "strict",
   "semanticCommits": "enabled",
   "semanticCommitType": "build",
@@ -17,6 +17,7 @@
     "enabled": true,
     "schedule": ["before 6am on the first day of the month"]
   },
+  "postUpdateOptions": ["pnpmDedupe"],
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "labels": ["security"]
@@ -40,6 +41,17 @@
         "react-dom",
         "@types/react",
         "@types/react-dom"
+      ]
+    },
+    {
+      "description": "Group Vite, Vitest, and related plugins into one PR to keep the ecosystem in lockstep",
+      "groupName": "vite",
+      "matchPackageNames": [
+        "vite",
+        "vitest",
+        "/^@vitejs//",
+        "/^@vitest//",
+        "/^vite-/"
       ]
     },
     {
