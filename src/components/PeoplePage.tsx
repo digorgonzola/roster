@@ -74,14 +74,16 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Prop
               const n = counts.get(p.id) ?? 0
               return (
                 <tr key={p.id}>
-                  <td className="pt-person">
-                    <Avatar person={p} size={24} />
-                    <input
-                      className="pt-name"
-                      value={p.name}
-                      onChange={(e) => onUpdate({ ...p, name: e.target.value })}
-                      aria-label={`Name for ${p.name}`}
-                    />
+                  <td>
+                    <div className="pt-person">
+                      <Avatar person={p} size={24} />
+                      <input
+                        className="pt-name"
+                        value={p.name}
+                        onChange={(e) => onUpdate({ ...p, name: e.target.value })}
+                        aria-label={`Name for ${p.name}`}
+                      />
+                    </div>
                   </td>
                   <td className="pt-swatch">
                     <button
