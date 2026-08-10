@@ -27,7 +27,7 @@
   /* Text/icon tokens. Mix percentages are the lightest that keep WCAG
      contrast on both --color-bg and --color-surface:
      secondary 70% = 5.8:1, muted 65% = 4.7:1, icon 50% = 3.0:1 (non-text). */
-  --color-text-secondary: var(--color-text-secondary);
+  --color-text-secondary: color-mix(in srgb, var(--color-text) 70%, transparent);
   --color-text-muted: color-mix(in srgb, var(--color-text) 65%, transparent);
   --color-icon-muted: color-mix(in srgb, var(--color-text) 50%, transparent);
 
