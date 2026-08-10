@@ -10,6 +10,8 @@ interface Props {
   onPrevWeek: () => void
   onThisWeek: () => void
   onNextWeek: () => void
+  /** False while there is nothing to print (no chores yet). */
+  showPrint: boolean
 }
 
 const LINKS: { page: Page; label: string }[] = [
@@ -19,7 +21,7 @@ const LINKS: { page: Page; label: string }[] = [
   { page: 'settings', label: 'Settings' },
 ]
 
-export function Nav({ page, onNavigate, weekStart, onPrevWeek, onThisWeek, onNextWeek }: Props) {
+export function Nav({ page, onNavigate, weekStart, onPrevWeek, onThisWeek, onNextWeek, showPrint }: Props) {
   return (
     <div className="no-print">
       <header className="nav">
@@ -49,7 +51,7 @@ export function Nav({ page, onNavigate, weekStart, onPrevWeek, onThisWeek, onNex
             </button>
             <span className="week-label">{weekLabel(weekStart)}</span>
           </div>
-          {page === 'week' && (
+          {page === 'week' && showPrint && (
             <button className="btn btn-primary" onClick={() => onNavigate('print')}>
               <Printer size={16} /> Print roster
             </button>
