@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Printer } from 'lucide-react'
+import { ArrowLeft, Check, Printer } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { PrintLayout } from './PrintRoster'
 
@@ -16,6 +16,7 @@ interface Props {
   options: PrintOptions
   onOptionsChange: (o: PrintOptions) => void
   onPrint: () => void
+  onBack: () => void
   /** The live PrintRoster, shown when Preview is toggled on. */
   preview: ReactNode
 }
@@ -27,11 +28,14 @@ const OPTION_LABELS: { key: keyof PrintOptions; label: string }[] = [
   { key: 'hideUnassigned', label: 'Hide unassigned' },
 ]
 
-export function PrintPanel({ layout, onLayoutChange, options, onOptionsChange, onPrint, preview }: Props) {
+export function PrintPanel({ layout, onLayoutChange, options, onOptionsChange, onPrint, onBack, preview }: Props) {
   const [showPreview, setShowPreview] = useState(false)
 
   return (
     <div className="page-narrow">
+      <button className="btn btn-ghost print-back" onClick={onBack}>
+        <ArrowLeft size={16} /> Back to this week
+      </button>
       <h2>Print roster</h2>
       <hr className="hr" />
 
