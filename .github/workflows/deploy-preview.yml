@@ -1,0 +1,161 @@
+name: Deploy Preview
+
+# Deploys each PR to a dedicated preview Worker ("roster-preview", defined as
+# env.preview in wrangler.jsonc) and posts the URL as a sticky PR comment.
+#
+# Why GitHub Actions and not Workers Builds: Cloudflare does not generate
+# Preview URLs for Workers that implement a Durable Object, so Workers Builds
+# branch builds (wrangler versions upload) succeed but yield no preview URL.
+# And Workers Builds must NEVER be pointed at `wrangler deploy --env preview`:
+# it pins the Worker name, ignores wrangler env names, and full-deploys the
+# branch to production (see the migrations comment in wrangler.jsonc).
+#
+# Known trade-offs, accepted for now:
+# - ALL PRs share the single roster-preview Worker: last deploy wins. With
+#   the current PR volume that is acceptable; revisit (per-PR Worker names +
+#   cleanup on close) if concurrent PRs become common.
+# - Preview DO data lives in roster-preview's own namespace, fully isolated
+#   from the production "roster" Worker.
+#
+# Security model: this workflow builds and executes PR code (pnpm install,
+# vite build) in a job that holds CLOUDFLARE_API_TOKEN, so it must only run
+# for same-repo branches (authored by collaborators). Fork PRs get no secrets
+# under `pull_request` anyway; the explicit same-repo gate below just makes
+# the skip clean instead of a mid-job failure. Do NOT change the trigger to
+# pull_request_target.
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+# One deploy per PR at a time; a newer push supersedes an in-flight deploy.
+concurrency:
+  group: deploy-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to roster-preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Same-repo, non-draft PRs only (see security model above; drafts match
+    # ci.yml's skip behavior).
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    outputs:
+      url: ${{ steps.extract-url.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Reads the pinned pnpm version from the packageManager field in
+      # package.json.
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # tsc -b (type check) then vite build -> ./dist (uploaded as assets).
+      - name: Build
+        run: pnpm run build
+
+      # pnpm exec uses the lockfile-pinned wrangler, never a freshly fetched
+      # one. Targets env.preview => Worker "roster-preview"; the production
+      # Worker "roster" is not touched.
+      - name: Deploy preview Worker
+        # Explicit `shell: bash` makes GitHub run bash with `-eo pipefail`
+        # (the implicit default shell has no pipefail), so a wrangler failure
+        # is not masked by the tee pipeline.
+        shell: bash
+        run: pnpm exec wrangler deploy --env preview 2>&1 | tee deploy.log
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 16d819ae170d010e7f7e936b5dee359d
+
+      # The workers.dev subdomain is account-specific, so take the URL from
+      # wrangler's output. Validate against a strict allowlist pattern before
+      # it goes anywhere near GITHUB_OUTPUT: the build above ran PR code, so
+      # nothing produced in this job is trusted by default.
+      - name: Extract preview URL
+        id: extract-url
+        run: |
+          url="$(grep -oE 'https://roster-preview\.[a-z0-9-]+\.workers\.dev' deploy.log | head -n1)"
+          if [ -z "$url" ]; then
+            echo "::warning title=No preview URL::Could not find a roster-preview workers.dev URL in wrangler output."
+            exit 0
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview deployed: $url" >> "$GITHUB_STEP_SUMMARY"
+
+  # Separate job so the write-scoped token and the Cloudflare secret never
+  # coexist: deploy has the secret but only contents:read; this job can write
+  # PR comments but runs no PR code and holds no Cloudflare credentials.
+  comment:
+    name: Comment preview URL
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: deploy
+    if: needs.deploy.outputs.url != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post or update sticky comment
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          # Job output validated against the strict URL pattern in
+          # extract-url; passed via env, never interpolated into the script.
+          PREVIEW_URL: ${{ needs.deploy.outputs.url }}
+        with:
+          script: |
+            const marker = "<!-- deploy-preview -->";
+            const body = [
+              marker,
+              "### Preview deployment",
+              "",
+              `${process.env.PREVIEW_URL}`,
+              "",
+              `Deployed commit ${context.payload.pull_request.head.sha} to the shared \`roster-preview\` Worker (last deploy across open PRs wins).`,
+            ].join("\n");
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              (c) => c.user.type === "Bot" && c.body.startsWith(marker),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

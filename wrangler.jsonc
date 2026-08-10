@@ -23,5 +23,24 @@
     // Workers Builds pins the Worker name, ignores a different env name,
     // and full-deploys the branch to production.
     { "tag": "v1", "new_sqlite_classes": ["RosterRoom"] }
-  ]
+  ],
+  "env": {
+    // PR preview deployments (deployed from GitHub Actions, NOT Workers
+    // Builds — see .github/workflows/deploy-preview.yml). A separate Worker
+    // ("roster-preview") because Cloudflare does not generate Preview URLs
+    // for Workers that implement a Durable Object, so branch-build version
+    // uploads of the production Worker yield no usable preview.
+    //
+    // Bindings and migrations are NON-inheritable per-environment keys in
+    // wrangler config, so the DO binding and migrations are repeated here.
+    // Keep them in lockstep with the top-level config. The preview Worker
+    // has its own DO namespace, so preview data is isolated from production.
+    "preview": {
+      "name": "roster-preview",
+      "durable_objects": {
+        "bindings": [{ "name": "ROOMS", "class_name": "RosterRoom" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RosterRoom"] }]
+    }
+  }
 }
