@@ -23,6 +23,11 @@
   },
   "packageRules": [
     {
+      "description": "Leave pnpm-workspace override ranges alone. They are hand-written security floors; pinning one rewrites the range to the latest major (see PR #26, which pinned the nanoid override to 6.0.1)",
+      "matchDepTypes": ["pnpm-workspace.overrides"],
+      "enabled": false
+    },
+    {
       "description": "GitHub Actions updates use the ci: commit type, matching repo convention",
       "matchManagers": ["github-actions"],
       "semanticCommitType": "ci"
