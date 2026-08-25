@@ -9,7 +9,7 @@
   "platformAutomerge": false,
   "automergeStrategy": "squash",
   "labels": ["dependencies"],
-  "minimumReleaseAge": "8 days",
+  "minimumReleaseAge": "14 days",
   "internalChecksFilter": "strict",
   "semanticCommits": "enabled",
   "semanticCommitType": "build",
