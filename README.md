@@ -66,6 +66,28 @@ with the link can view and edit that one roster. Shared rosters live in a
 Cloudflare Durable Object. **Stop syncing** disconnects the device and keeps
 its local copy. Without a share, the app never talks to a server.
 
+## Calendar & tasks
+
+Put chores in a calendar or task app from **Settings → Calendar & tasks**. Pick
+**Everyone** or one person, then either format:
+
+- **Calendar** — events, one per chore occurrence. Works with Google Calendar,
+  Apple Calendar and Outlook.
+- **Reminders** — tasks (VTODO), for **Apple Reminders** and **Microsoft
+  To Do**. (Google Tasks imports neither, and no task app subscribes to a live
+  feed.)
+
+Two ways to get them across:
+
+- **Download `.ics`** — a one-off file covering the next 8 weeks. No sharing
+  needed; works for both formats.
+- **Subscribe to a live feed** — available for **Calendar** once **Family sync**
+  is on. **Enable live feed** gives a link your calendar app polls, so chores
+  stay current as they rotate and change. The feed serves a rolling ~13-week
+  window and is **read-only**: its token is derived from the share key by a
+  one-way hash, so it can read the calendar but never edit the roster, and every
+  shared device derives the same feed URL.
+
 ## Tech
 
 Vite + React + TypeScript, plain CSS. No accounts, no tracking. A small

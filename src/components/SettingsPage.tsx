@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { renderSVG } from 'uqr'
 import type { AppState, TimeOfDay } from '../types'
@@ -21,6 +21,17 @@ interface Props {
   deviceCount: number | null
   onShare: () => void
   onStopShare: () => void
+  /** Download an .ics: calendar events (tasks=false) or reminders (tasks=true). */
+  onExportIcs: (personId: string | undefined, tasks: boolean) => void
+  /** True once this device has registered the live feed token with the room. */
+  calFeedEnabled: boolean
+  calError: string
+  onEnableCalendar: () => void
+  /** The subscribable feed URL, or null until sharing + token are ready. */
+  feedUrlFor: (personId: string | undefined, tasks: boolean) => string | null
+  /** True when arriving from the dashboard's "Add to calendar" shortcut. */
+  focusCalendar: boolean
+  onFocusHandled: () => void
 }
 
 function syncStatus(deviceCount: number | null): string {
@@ -91,6 +102,104 @@ function ShareCard({ shareLink, deviceCount, onStopShare }: {
   )
 }
 
+/** Calendar & task export: pick a person and kind, then download or subscribe. */
+function CalendarCard(props: {
+  state: AppState
+  shared: boolean
+  calFeedEnabled: boolean
+  calError: string
+  onExportIcs: (personId: string | undefined, tasks: boolean) => void
+  onEnableCalendar: () => void
+  feedUrlFor: (personId: string | undefined, tasks: boolean) => string | null
+}) {
+  const { state, shared } = props
+  const [personId, setPersonId] = useState('') // '' = everyone
+  const [tasks, setTasks] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const who = personId || undefined
+  const feedUrl = props.feedUrlFor(who, tasks)
+
+  const copyFeed = async () => {
+    if (!feedUrl) return
+    try {
+      await navigator.clipboard.writeText(feedUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard blocked: the URL stays selectable in the input
+    }
+  }
+
+  return (
+    <div className="cal-card">
+      <div className="cal-controls">
+        <label className="cal-field">
+          <span className="text-muted footnote">Whose chores</span>
+          <select className="input" value={personId} onChange={(e) => setPersonId(e.target.value)}>
+            <option value="">Everyone</option>
+            {state.people.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </label>
+        <span className="seg">
+          {([['Calendar', false], ['Reminders', true]] as const).map(([label, v]) => (
+            <label key={label} className="seg-opt">
+              <input type="radio" name="cal-kind" checked={tasks === v} onChange={() => setTasks(v)} />
+              {label}
+            </label>
+          ))}
+        </span>
+      </div>
+
+      <div className="data-row">
+        <button className="btn btn-secondary" onClick={() => props.onExportIcs(who, tasks)}>Download .ics</button>
+        <span className="text-muted footnote">
+          {tasks
+            ? 'Next 8 weeks as tasks. Import into Apple Reminders or Microsoft To Do.'
+            : 'Next 8 weeks as events. Import into any calendar app.'}
+        </span>
+      </div>
+
+      {tasks ? (
+        <p className="text-muted footnote">
+          Task apps can't subscribe to a live feed. Use Download, or switch to Calendar for an
+          auto-updating link.
+        </p>
+      ) : !shared ? (
+        <p className="text-muted footnote">
+          Turn on Family sync above to get a link that keeps a calendar up to date on its own.
+        </p>
+      ) : !props.calFeedEnabled || !feedUrl ? (
+        <div className="data-row">
+          <button className="btn btn-primary" onClick={props.onEnableCalendar}>Enable live feed</button>
+          <span className="text-muted footnote">Creates an auto-updating subscribe link.</span>
+        </div>
+      ) : (
+        <>
+          <div className="data-row">
+            <input
+              className="input share-link"
+              readOnly
+              value={feedUrl}
+              onFocus={(e) => e.target.select()}
+              aria-label="Calendar feed URL"
+            />
+            <button className="btn btn-secondary" onClick={() => void copyFeed()}>
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <p className="text-muted footnote">
+            Add this as a subscribed calendar in Google, Apple or Outlook. It refreshes on its own.
+          </p>
+        </>
+      )}
+      {props.calError && <p className="editor-error">{props.calError}</p>}
+    </div>
+  )
+}
+
 /** Inline editor for the four day-part names. */
 function SlotLabelEditor({ state, onRenameSlot, onDone }: {
   state: AppState
@@ -135,6 +244,28 @@ export function SettingsPage(props: Props) {
   const { state, mobile } = props
   const [renaming, setRenaming] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const calRef = useRef<HTMLDivElement>(null)
+  const [flash, setFlash] = useState(false)
+
+  // Arriving from the dashboard shortcut: bring the calendar section into view
+  // and flash it once, then tell the parent we handled the request.
+  useEffect(() => {
+    if (!props.focusCalendar) return
+    // Wait a frame so the freshly mounted page has laid out before scrolling.
+    const raf = requestAnimationFrame(() => {
+      calRef.current?.scrollIntoView({ block: 'start' })
+      setFlash(true)
+    })
+    const t = setTimeout(() => {
+      setFlash(false)
+      props.onFocusHandled()
+    }, 1400)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.focusCalendar])
 
   const fileInput = (
     <input
@@ -206,6 +337,29 @@ export function SettingsPage(props: Props) {
         </div>
       </div>
 
+      <div ref={calRef} className={`settings-section${flash ? ' settings-flash' : ''}`}>
+      <hr className="hr settings-hr" />
+      <h6>Calendar &amp; tasks</h6>
+      <div className="settings-rows">
+        <div className="settings-label">Export chores</div>
+        <div>
+          <CalendarCard
+            state={state}
+            shared={props.shareLink !== null}
+            calFeedEnabled={props.calFeedEnabled}
+            calError={props.calError}
+            onExportIcs={props.onExportIcs}
+            onEnableCalendar={props.onEnableCalendar}
+            feedUrlFor={props.feedUrlFor}
+          />
+          <p className="text-muted footnote">
+            Put chores in your calendar or reminders app. Download a file, or subscribe to a link
+            that stays current.
+          </p>
+        </div>
+      </div>
+      </div>
+
       <hr className="hr settings-hr" />
       <h6>Data</h6>
       <div className="settings-rows">
@@ -240,8 +394,8 @@ function MobileSettings(props: Props & {
   fileInput: React.ReactNode
 }) {
   const { state } = props
-  const [open, setOpen] = useState<'week' | 'labels' | 'sync' | null>(null)
-  const toggle = (k: 'week' | 'labels' | 'sync') => setOpen((v) => (v === k ? null : k))
+  const [open, setOpen] = useState<'week' | 'labels' | 'sync' | 'cal' | null>(null)
+  const toggle = (k: 'week' | 'labels' | 'sync' | 'cal') => setOpen((v) => (v === k ? null : k))
 
   return (
     <div className="mset">
@@ -295,6 +449,25 @@ function MobileSettings(props: Props & {
         </button>
       )}
       {props.shareError && <p className="editor-error mset-error">{props.shareError}</p>}
+
+      <h6 className="mset-section">Calendar &amp; tasks</h6>
+      <button className="mset-row" onClick={() => toggle('cal')} aria-expanded={open === 'cal'}>
+        <span className="mset-row-label">Export chores</span>
+        <ChevronRight size={16} className={`mset-chevron${open === 'cal' ? ' open' : ''}`} />
+      </button>
+      {open === 'cal' && (
+        <div className="mset-detail">
+          <CalendarCard
+            state={state}
+            shared={props.shareLink !== null}
+            calFeedEnabled={props.calFeedEnabled}
+            calError={props.calError}
+            onExportIcs={props.onExportIcs}
+            onEnableCalendar={props.onEnableCalendar}
+            feedUrlFor={props.feedUrlFor}
+          />
+        </div>
+      )}
 
       <h6 className="mset-section">Data</h6>
       <button className="mset-row" onClick={props.onExport}>

@@ -2,7 +2,9 @@ import { DurableObject } from 'cloudflare:workers'
 import type { AppState } from '../src/types'
 import { applyOp, type Op } from '../src/ops'
 import { migrate } from '../src/migrate'
+import { buildCalendar, buildTasks, calendarName } from '../src/ics'
 import type {
+  CalendarEnableRequest,
   ClientMessage,
   InitRequest,
   OpRequest,
@@ -10,12 +12,15 @@ import type {
   ServerMessage,
   Snapshot,
 } from '../src/sync/protocol'
-import { ROSTER_KEY_HEADER } from '../src/sync/protocol'
+import { CALENDAR_TOKEN_PARAM, ROSTER_KEY_HEADER } from '../src/sync/protocol'
 import type { Env } from './env'
 
 /** Auth failures allowed before every further attempt is delayed. */
 const FAIL_LIMIT = 5
 const FAIL_DELAY_MS = 1000
+
+/** How many weeks of occurrences the subscribable feed materialises ahead. */
+const FEED_WEEKS = 13
 
 /**
  * One shared roster. The DO serializes all writes, so ops apply one at a
@@ -33,6 +38,8 @@ export class RosterRoom extends DurableObject<Env> {
     if (route === 'GET /state') return this.snapshot(request)
     if (route === 'POST /op') return this.op(request)
     if (route === 'GET /ws') return this.upgrade(request)
+    if (route === 'POST /calendar') return this.enableCalendar(request)
+    if (route === 'GET /calendar.ics') return this.serveCalendar(request)
     return json({ error: 'not found' }, 404)
   }
 
@@ -160,6 +167,54 @@ export class RosterRoom extends DurableObject<Env> {
     await this.ctx.storage.put({ state: next, rev: nextRev })
     this.broadcast({ t: 'op', rev: nextRev, op })
     return json({ rev: nextRev, stale: body.baseRev !== rev } satisfies OpResponse, 200)
+  }
+
+  /** Register the feed token hash (authed with the room key). Idempotent. */
+  private async enableCalendar(request: Request): Promise<Response> {
+    const denied = await this.checkKey(request)
+    if (denied) return denied
+    const body = (await request.json()) as CalendarEnableRequest
+    if (typeof body.tokenHash !== 'string' || !/^[0-9a-f]{64}$/.test(body.tokenHash)) {
+      return json({ error: 'bad tokenHash' }, 400)
+    }
+    await this.ctx.storage.put('calTokenHash', body.tokenHash)
+    return json({ ok: true }, 200)
+  }
+
+  /**
+   * Serve a rolling window of chore occurrences as an .ics feed. The token in
+   * the query grants read-only access; it cannot be used to write ops. No
+   * key/token means the feed is not enabled or the token is wrong: 401 either
+   * way, so a bad URL never reveals whether the room exists.
+   */
+  private async serveCalendar(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    const token = url.searchParams.get(CALENDAR_TOKEN_PARAM)
+    const stored = await this.ctx.storage.get<string>('calTokenHash')
+    if (token === null || stored === undefined || !(await hashesMatch(token, stored))) {
+      return json({ error: 'unauthorized' }, 401)
+    }
+    const state = await this.ctx.storage.get<AppState>('state')
+    if (state === undefined) return json({ error: 'not initialized' }, 404)
+
+    const personId = url.searchParams.get('person') ?? undefined
+    const tasks = url.searchParams.get('kind') === 'tasks'
+    const now = new Date()
+    const opts = {
+      start: now,
+      weeks: FEED_WEEKS,
+      personId,
+      now,
+      name: calendarName(state, personId),
+    }
+    const body = tasks ? buildTasks(state, opts) : buildCalendar(state, opts)
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'content-type': 'text/calendar; charset=utf-8',
+        'cache-control': 'no-cache',
+      },
+    })
   }
 
   /** Null when the presented key matches; an error Response otherwise. */

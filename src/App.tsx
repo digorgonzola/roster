@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppState, Chore, DayIndex, Person, TimeOfDay } from './types'
-import { load, save, exportJson, importJson, clearStored, seedState } from './storage'
+import { load, save, exportJson, exportIcs, exportTasksIcs, importJson, clearStored, seedState } from './storage'
 import { newId } from './ids'
 import { applyOp, type Op } from './ops'
 import {
   SyncClient,
+  calendarEnabled,
+  calendarFeedUrl,
   clearShareConfig,
+  deriveCalToken,
+  enableCalendarFeed,
   loadShareConfig,
   parseShareLink,
   shareLink,
@@ -54,6 +58,9 @@ export default function App() {
     hideUnassigned: false,
   })
   const [importError, setImportError] = useState('')
+  // Set when the dashboard rail jumps to the calendar settings, so the section
+  // scrolls into view and flashes once. Cleared after the Settings page reacts.
+  const [focusCalendar, setFocusCalendar] = useState(false)
   const isMobile = useIsMobile()
 
   // ---- Sharing ----
@@ -66,6 +73,11 @@ export default function App() {
   const [deviceCount, setDeviceCount] = useState<number | null>(null)
   const [joining, setJoining] = useState(() => parseShareLink(location.hash) !== null)
   const [joinError, setJoinError] = useState('')
+
+  // ---- Calendar feed (Phase 2) ----
+  const [calEnabled, setCalEnabled] = useState(() => calendarEnabled())
+  const [calToken, setCalToken] = useState<string | null>(null)
+  const [calError, setCalError] = useState('')
 
   // On boot: join a share link if one is in the fragment. Runs once.
   useEffect(() => {
@@ -113,7 +125,39 @@ export default function App() {
     sync?.stop()
     clearShareConfig()
     setSync(null)
+    setCalEnabled(false)
+    setCalToken(null)
   }
+
+  // Derive the feed token from the room key whenever sharing is active, so the
+  // subscribe URLs are ready to show the moment the feed is enabled.
+  useEffect(() => {
+    if (!sync) {
+      setCalToken(null)
+      return
+    }
+    let alive = true
+    void deriveCalToken(sync.config.key).then((t) => {
+      if (alive) setCalToken(t)
+    })
+    return () => {
+      alive = false
+    }
+  }, [sync])
+
+  const enableCalendar = async () => {
+    if (!sync) return
+    setCalError('')
+    try {
+      await enableCalendarFeed(sync.config)
+      setCalEnabled(true)
+    } catch {
+      setCalError('Could not enable the calendar feed. Check your connection and try again.')
+    }
+  }
+
+  const feedUrlFor = (personId: string | undefined, tasks: boolean): string | null =>
+    sync && calToken ? calendarFeedUrl(sync.config, calToken, { personId, tasks }) : null
 
   useEffect(() => { save(state) }, [state])
 
@@ -216,6 +260,13 @@ export default function App() {
       deviceCount={deviceCount}
       onShare={() => void startSharing()}
       onStopShare={stopSharing}
+      onExportIcs={(personId, tasks) => (tasks ? exportTasksIcs(state, personId) : exportIcs(state, personId))}
+      calFeedEnabled={calEnabled}
+      calError={calError}
+      onEnableCalendar={() => void enableCalendar()}
+      feedUrlFor={feedUrlFor}
+      focusCalendar={focusCalendar}
+      onFocusHandled={() => setFocusCalendar(false)}
     />
   )
 
@@ -298,6 +349,10 @@ export default function App() {
                 onAssign={setAssignTarget}
                 onAddChore={() => openChore('new')}
                 onExport={() => exportJson(state)}
+                onOpenCalendar={() => {
+                  setPage('settings')
+                  setFocusCalendar(true)
+                }}
               />
             )}
             {page === 'chores' && choresPage}

@@ -45,6 +45,22 @@ export interface OpResponse {
 
 export const ROSTER_KEY_HEADER = 'X-Roster-Key'
 
+/**
+ * POST /api/rooms/:roomId/calendar — register the read-only calendar feed.
+ *
+ * The feed token is derived from the room key (see client `deriveCalToken`), so
+ * every device computes the same feed URL, and the token can read the ICS but
+ * never write ops (those still require the raw key). The server stores only the
+ * token's hash, exactly as it does for the room key.
+ */
+export interface CalendarEnableRequest {
+  /** Hex SHA-256 of the feed token. */
+  tokenHash: string
+}
+
+/** Query parameter carrying the feed token on GET /calendar.ics. */
+export const CALENDAR_TOKEN_PARAM = 'token'
+
 // ---- WebSocket push channel (GET /api/rooms/:roomId/ws) --------------------
 //
 // The socket is receive-only for roster data: clients still send ops over
