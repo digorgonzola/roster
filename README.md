@@ -1,5 +1,9 @@
 # 🧹 Household Chore Roster
 
+[![CI](https://github.com/digorgonzola/roster/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/digorgonzola/roster/actions/workflows/ci.yml)
+[![Workflow Security](https://github.com/digorgonzola/roster/actions/workflows/zizmor.yml/badge.svg?branch=main)](https://github.com/digorgonzola/roster/actions/workflows/zizmor.yml)
+[![Deployment](https://img.shields.io/badge/deploy-Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)](https://github.com/digorgonzola/roster/deployments)
+
 A small, no-backend web app to run a family chore roster: add people and chores,
 schedule them **weekly** or as **one-off** irregular tasks, assign them **manually**
 or **auto-rotate** them across people each week, and print a **grayscale-safe A4**
