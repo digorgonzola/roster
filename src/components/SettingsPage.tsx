@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { renderSVG } from 'uqr'
 import type { AppState, TimeOfDay } from '../types'
@@ -29,6 +29,9 @@ interface Props {
   onEnableCalendar: () => void
   /** The subscribable feed URL, or null until sharing + token are ready. */
   feedUrlFor: (personId: string | undefined, tasks: boolean) => string | null
+  /** True when arriving from the dashboard's "Add to calendar" shortcut. */
+  focusCalendar: boolean
+  onFocusHandled: () => void
 }
 
 function syncStatus(deviceCount: number | null): string {
@@ -241,6 +244,28 @@ export function SettingsPage(props: Props) {
   const { state, mobile } = props
   const [renaming, setRenaming] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const calRef = useRef<HTMLDivElement>(null)
+  const [flash, setFlash] = useState(false)
+
+  // Arriving from the dashboard shortcut: bring the calendar section into view
+  // and flash it once, then tell the parent we handled the request.
+  useEffect(() => {
+    if (!props.focusCalendar) return
+    // Wait a frame so the freshly mounted page has laid out before scrolling.
+    const raf = requestAnimationFrame(() => {
+      calRef.current?.scrollIntoView({ block: 'start' })
+      setFlash(true)
+    })
+    const t = setTimeout(() => {
+      setFlash(false)
+      props.onFocusHandled()
+    }, 1400)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.focusCalendar])
 
   const fileInput = (
     <input
@@ -312,6 +337,7 @@ export function SettingsPage(props: Props) {
         </div>
       </div>
 
+      <div ref={calRef} className={`settings-section${flash ? ' settings-flash' : ''}`}>
       <hr className="hr settings-hr" />
       <h6>Calendar &amp; tasks</h6>
       <div className="settings-rows">
@@ -331,6 +357,7 @@ export function SettingsPage(props: Props) {
             that stays current.
           </p>
         </div>
+      </div>
       </div>
 
       <hr className="hr settings-hr" />

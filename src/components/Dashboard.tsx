@@ -23,6 +23,7 @@ interface Props {
   onAssign: (target: AssignTarget) => void
   onAddChore: () => void
   onExport: () => void
+  onOpenCalendar: () => void
 }
 
 export function Dashboard(props: Props) {
@@ -193,6 +194,7 @@ export function Dashboard(props: Props) {
           )}
           <hr className="hr" />
           <button className="btn btn-secondary btn-block" onClick={props.onAddChore}>Add chore</button>
+          <button className="btn btn-secondary btn-block" onClick={props.onOpenCalendar}>Add to calendar</button>
           <button className="btn btn-secondary btn-block" onClick={props.onExport}>Export JSON</button>
         </aside>
         )}

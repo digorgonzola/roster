@@ -58,6 +58,9 @@ export default function App() {
     hideUnassigned: false,
   })
   const [importError, setImportError] = useState('')
+  // Set when the dashboard rail jumps to the calendar settings, so the section
+  // scrolls into view and flashes once. Cleared after the Settings page reacts.
+  const [focusCalendar, setFocusCalendar] = useState(false)
   const isMobile = useIsMobile()
 
   // ---- Sharing ----
@@ -262,6 +265,8 @@ export default function App() {
       calError={calError}
       onEnableCalendar={() => void enableCalendar()}
       feedUrlFor={feedUrlFor}
+      focusCalendar={focusCalendar}
+      onFocusHandled={() => setFocusCalendar(false)}
     />
   )
 
@@ -344,6 +349,10 @@ export default function App() {
                 onAssign={setAssignTarget}
                 onAddChore={() => openChore('new')}
                 onExport={() => exportJson(state)}
+                onOpenCalendar={() => {
+                  setPage('settings')
+                  setFocusCalendar(true)
+                }}
               />
             )}
             {page === 'chores' && choresPage}
