@@ -66,6 +66,31 @@
 .pr-grid-row:last-child .pr-grid-cell, .pr-grid-row:last-child .pr-grid-slot { border-bottom: 2px solid #000; }
 .pr-grid-slot { border-bottom: 1px solid #000; }
 
+/* — 2d people rows (person × day, mirrors the on-screen People view) — */
+.pr-lanes { display: grid; grid-template-columns: 128px repeat(7, 1fr); }
+.pr-lane { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
+.pr-lane-head .pr-lane-person { border-bottom: 2px solid #000; }
+.pr-lane-day {
+  padding: 8px 8px 6px; border-bottom: 2px solid #000; border-left: 1px solid #000;
+  display: flex; flex-direction: column;
+}
+.pr-lane-day b { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.pr-lane-day span { font-size: 11px; color: #444; }
+.pr-lane-person {
+  padding: 8px 6px; display: flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 800; border-bottom: 1px solid #000;
+}
+.pr-lane-cell {
+  min-height: 60px; padding: 8px; display: flex; flex-direction: column; gap: 6px;
+  border-left: 1px solid #000; border-bottom: 1px solid #000;
+}
+.pr-lane:last-child .pr-lane-cell, .pr-lane:last-child .pr-lane-person { border-bottom: 2px solid #000; }
+.pr-lane-item { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.35; }
+.pr-lane-unassigned .pr-lane-person { font-weight: 400; font-style: italic; }
+
+/* People rows draw their own bottom rule, so the footer needs no second one. */
+.print-people .pr-footer { border-top: 0; }
+
 /* — 2b per-person cards — */
 .pr-cards {
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
@@ -112,5 +137,5 @@
   .pr-swatch, .pr-tick {
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-  .pr-card, .pr-grid-row { break-inside: avoid; }
+  .pr-card, .pr-grid-row, .pr-lane { break-inside: avoid; }
 }

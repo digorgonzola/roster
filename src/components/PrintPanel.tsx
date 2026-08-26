@@ -51,6 +51,16 @@ export function PrintPanel({ layout, onLayoutChange, options, onOptionsChange, o
           <span className="text-muted">A4 landscape · everyone on one sheet</span>
         </button>
         <button
+          className={`print-layout-card${layout === 'people' ? ' selected' : ''}`}
+          onClick={() => onLayoutChange('people')}
+        >
+          <span className="print-schematic schematic-people" aria-hidden>
+            {Array.from({ length: 4 }, (_, i) => <span key={i} />)}
+          </span>
+          <strong>People rows</strong>
+          <span className="text-muted">A4 landscape · one row per person</span>
+        </button>
+        <button
           className={`print-layout-card${layout === 'cards' ? ' selected' : ''}`}
           onClick={() => onLayoutChange('cards')}
         >
