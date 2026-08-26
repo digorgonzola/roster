@@ -236,7 +236,7 @@ export function SettingsPage(props: Props) {
 
 /** Design 3c: grouped list rows; the drill-in rows expand in place. */
 function MobileSettings(props: Props & {
-  fileRef: React.RefObject<HTMLInputElement>
+  fileRef: React.RefObject<HTMLInputElement | null>
   fileInput: React.ReactNode
 }) {
   const { state } = props
