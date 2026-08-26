@@ -103,14 +103,14 @@
 }
 .pr-card-name { font-size: 19px; font-weight: 800; flex: 1; }
 .pr-card-jobs { font-size: 12px; color: #444; }
-.pr-card-dayrow { display: flex; gap: 12px; padding: 6px 0; }
-/* Hairline between days, plus a divider after the day label, so each day
-   reads as its own block even when it carries several jobs. */
-.pr-card-dayrow + .pr-card-dayrow { border-top: 1px solid #000; }
+.pr-card-dayrow { display: flex; gap: 12px; padding: 6px 8px; }
+/* Alternate days get a light grey band so the eye separates them at a
+   glance; grey stays photocopy-safe where a tint colour would not. The
+   head is the first child, so even children are every other day row. */
+.pr-card-dayrow:nth-child(even) { background: #ececec; }
 .pr-card-day {
   width: 40px; flex: none; font-size: 11px; font-weight: 800;
-  letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px 0 0;
-  border-right: 1px solid #000;
+  letter-spacing: 0.08em; text-transform: uppercase; padding-top: 3px;
 }
 .pr-card-lines { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .pr-card-line { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 1.35; }
@@ -137,8 +137,8 @@
   .print-only { display: block !important; }
   .print-root { padding: 0; }
 
-  /* Pattern fills must actually reach the paper. */
-  .pr-swatch, .pr-tick {
+  /* Pattern fills and day shading must actually reach the paper. */
+  .pr-swatch, .pr-tick, .pr-card-dayrow {
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .pr-card, .pr-grid-row, .pr-lane { break-inside: avoid; }
