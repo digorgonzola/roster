@@ -5,7 +5,7 @@ import { initials, patternFor } from '../palette'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
 import type { PrintOptions } from './PrintPanel'
 
-export type PrintLayout = 'grid' | 'cards'
+export type PrintLayout = 'grid' | 'cards' | 'people'
 
 interface Props {
   state: AppState
@@ -23,7 +23,7 @@ export function PrintRoster({ state, weekStart, layout, options }: Props) {
   return (
     <div className={`print-root print-${layout}`}>
       {/* @page can't be scoped by class, so the layout injects its own sheet size. */}
-      <style>{`@media print { @page { size: A4 ${layout === 'grid' ? 'landscape' : 'portrait'}; margin: 12mm; } }`}</style>
+      <style>{`@media print { @page { size: A4 ${layout === 'cards' ? 'portrait' : 'landscape'}; margin: 12mm; } }`}</style>
 
       <header className="pr-masthead">
         <div className="pr-masthead-left">
@@ -47,13 +47,15 @@ export function PrintRoster({ state, weekStart, layout, options }: Props) {
 
       {layout === 'grid'
         ? <PrintGrid state={state} weekStart={weekStart} entries={entries} options={options} />
+        : layout === 'people'
+        ? <PrintPeople state={state} weekStart={weekStart} entries={entries} options={options} />
         : <PrintCards state={state} entries={entries} options={options} />}
 
       <footer className="pr-footer">
         <span>
-          {layout === 'grid'
-            ? "Tick it when it's done."
-            : 'Swatch = colour + pattern, so the card still reads photocopied.'}
+          {layout === 'cards'
+            ? 'Swatch = colour + pattern, so the card still reads photocopied.'
+            : "Tick it when it's done."}
         </span>
         <span>Printed {printedOn}</span>
       </footer>
@@ -112,6 +114,66 @@ function PrintGrid({ state, weekStart, entries, options }: {
           ))}
         </div>
       ))}
+    </div>
+  )
+}
+
+function PrintPeople({ state, weekStart, entries, options }: {
+  state: AppState
+  weekStart: Date
+  entries: WeekEntry[]
+  options: PrintOptions
+}) {
+  const cols = daysOfWeek(weekStart)
+  if (state.chores.length === 0) return <p className="pr-empty">No chores scheduled this week.</p>
+
+  const unassigned = options.hideUnassigned ? [] : entries.filter((e) => !e.assignee)
+
+  const cell = (items: WeekEntry[]) =>
+    items.map((e) => (
+      <div key={`${e.chore.id}:${e.date}`} className="pr-lane-item">
+        {options.tickBoxes && <span className="pr-tick" />}
+        <span className="pr-entry-text">
+          {e.chore.name}
+          {options.notes && e.chore.notes && <span className="pr-entry-note"> · {e.chore.notes}</span>}
+        </span>
+      </div>
+    ))
+
+  return (
+    <div className="pr-lanes">
+      <div className="pr-lane pr-lane-head">
+        <div className="pr-lane-person">Person</div>
+        {cols.map((d) => (
+          <div key={d.toISOString()} className="pr-lane-day">
+            <b>{DAY_NAMES[toDayIndex(d)]}</b>
+            <span>{d.getDate()} {d.toLocaleDateString(undefined, { month: 'short' })}</span>
+          </div>
+        ))}
+      </div>
+      {state.people.map((p) => (
+        <div key={p.id} className="pr-lane">
+          <div className="pr-lane-person">
+            {options.personKey && <PrintSwatch color={p.color} label={initials(p.name)} />}
+            <b>{p.name}</b>
+          </div>
+          {cols.map((d) => (
+            <div key={d.toISOString()} className="pr-lane-cell">
+              {cell(entries.filter((e) => e.dayIndex === toDayIndex(d) && e.assignee?.id === p.id))}
+            </div>
+          ))}
+        </div>
+      ))}
+      {unassigned.length > 0 && (
+        <div className="pr-lane pr-lane-unassigned">
+          <div className="pr-lane-person"><b>Unassigned</b></div>
+          {cols.map((d) => (
+            <div key={d.toISOString()} className="pr-lane-cell">
+              {cell(unassigned.filter((e) => e.dayIndex === toDayIndex(d)))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
