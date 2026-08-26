@@ -1,7 +1,9 @@
 import type { AppState } from '../types'
 import type { Op } from '../ops'
 import {
+  CALENDAR_TOKEN_PARAM,
   ROSTER_KEY_HEADER,
+  type CalendarEnableRequest,
   type ClientMessage,
   type CreateRoomResponse,
   type InitRequest,
@@ -74,10 +76,54 @@ function saveShareConfig(config: ShareConfig): void {
 export function clearShareConfig(): void {
   localStorage.removeItem(SHARE_KEY)
   localStorage.removeItem(PENDING_KEY)
+  localStorage.removeItem(CAL_ENABLED_KEY)
 }
 
 export function shareLink(config: ShareConfig): string {
   return `${location.origin}/#/r/${config.roomId}/${config.key}`
+}
+
+const CAL_ENABLED_KEY = 'roster.cal.v1'
+
+/**
+ * The read-only feed token, derived from the room key so every device produces
+ * the same feed URL without extra round-trips. It is a one-way hash of the key,
+ * so it never exposes the key and cannot be replayed as a write credential.
+ */
+export function deriveCalToken(key: string): Promise<string> {
+  return sha256Hex(`${key}:calendar`)
+}
+
+/** Whether this device has enabled the calendar feed (UI hint only). */
+export function calendarEnabled(): boolean {
+  return localStorage.getItem(CAL_ENABLED_KEY) === '1'
+}
+
+/** Register the feed token hash with the room, then remember it locally. */
+export async function enableCalendarFeed(config: ShareConfig): Promise<void> {
+  const token = await deriveCalToken(config.key)
+  const body: CalendarEnableRequest = { tokenHash: await sha256Hex(token) }
+  await expectOk(
+    await fetch(`/api/rooms/${config.roomId}/calendar`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', [ROSTER_KEY_HEADER]: config.key },
+      body: JSON.stringify(body),
+    }),
+  )
+  localStorage.setItem(CAL_ENABLED_KEY, '1')
+}
+
+/** The subscribable .ics URL for a person (or the whole household). */
+export function calendarFeedUrl(
+  config: ShareConfig,
+  token: string,
+  opts: { personId?: string; tasks?: boolean } = {},
+): string {
+  const u = new URL(`${location.origin}/api/rooms/${config.roomId}/calendar.ics`)
+  u.searchParams.set(CALENDAR_TOKEN_PARAM, token)
+  if (opts.personId) u.searchParams.set('person', opts.personId)
+  if (opts.tasks) u.searchParams.set('kind', 'tasks')
+  return u.toString()
 }
 
 /** Parse `#/r/<roomId>/<key>` from a location hash. */

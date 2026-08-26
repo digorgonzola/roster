@@ -1,6 +1,7 @@
 import type { AppState } from './types'
 import { weekNumber } from './week'
 import { migrate } from './migrate'
+import { buildCalendar, buildTasks, calendarName } from './ics'
 
 const KEY = 'roster.state.v1'
 
@@ -116,15 +117,54 @@ export function clearStored(): void {
   }
 }
 
-/** Trigger a download of the current roster as a JSON file. */
-export function exportJson(state: AppState): void {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })
+/** Trigger a browser download of `text` as `filename` with the given MIME type. */
+function download(text: string, filename: string, type: string): void {
+  const blob = new Blob([text], { type })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'chore-roster.json'
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/** Trigger a download of the current roster as a JSON file. */
+export function exportJson(state: AppState): void {
+  download(JSON.stringify(state, null, 2), 'chore-roster.json', 'application/json')
+}
+
+/** How many weeks of occurrences a downloaded .ics file covers. */
+const ICS_WEEKS = 8
+
+/** A filename-safe stem from a person's name, or 'household'. */
+function icsStem(state: AppState, personId?: string): string {
+  const person = personId ? state.people.find((p) => p.id === personId) : undefined
+  const base = person ? person.name : 'household'
+  return base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'chores'
+}
+
+/** Download an .ics of chore occurrences as calendar events (VEVENT). */
+export function exportIcs(state: AppState, personId?: string): void {
+  const ics = buildCalendar(state, {
+    start: new Date(),
+    weeks: ICS_WEEKS,
+    personId,
+    now: new Date(),
+    name: calendarName(state, personId),
+  })
+  download(ics, `chores-${icsStem(state, personId)}.ics`, 'text/calendar')
+}
+
+/** Download an .ics of chore occurrences as tasks (VTODO), for reminder apps. */
+export function exportTasksIcs(state: AppState, personId?: string): void {
+  const ics = buildTasks(state, {
+    start: new Date(),
+    weeks: ICS_WEEKS,
+    personId,
+    now: new Date(),
+    name: calendarName(state, personId),
+  })
+  download(ics, `chore-tasks-${icsStem(state, personId)}.ics`, 'text/calendar')
 }
 
 /** Read + validate a user-picked JSON file. Rejects on bad shape. */
