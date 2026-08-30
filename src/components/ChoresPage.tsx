@@ -169,7 +169,9 @@ export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selecti
   const editingId = selectedChoreId(selection)
   const editingChore = editingId !== null ? chores.find((c) => c.id === editingId) : undefined
 
-  const filtered = chores.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
+  const filtered = chores
+    .filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
   // Chores that are switched off aren't on the roster, so they never nag.
   const needCount = chores.filter((c) => !c.paused && needsPerson(c)).length
 
