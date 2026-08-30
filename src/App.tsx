@@ -190,6 +190,10 @@ export default function App() {
 
   const deleteChore = (id: string) => dispatch({ t: 'deleteChore', id })
 
+  // Seasonal on/off, e.g. firewood in winter only. Off = hidden everywhere.
+  const setChorePaused = (choreId: string, paused: boolean) =>
+    dispatch({ t: 'setChorePaused', choreId, paused })
+
   // ---- Completion (per chore per date; history, never rewritten) ----
   const toggleDone = (date: string, choreId: string) =>
     dispatch({ t: 'setDone', date, choreId, done: !(state.done[date] ?? []).includes(choreId) })
@@ -280,6 +284,7 @@ export default function App() {
       onSelect={setChoreSelection}
       onSave={saveChore}
       onDelete={deleteChore}
+      onSetPaused={setChorePaused}
     />
   )
 

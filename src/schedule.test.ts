@@ -55,6 +55,21 @@ describe('nextRotationOffset', () => {
   })
 })
 
+describe('paused chores', () => {
+  it('emit no occurrences but keep their rotation offset reserved', () => {
+    const weekStart = new Date(2026, 7, 3) // Monday 2026-08-03
+    const chores = [
+      { ...rotate('off', 0, 'weekly'), paused: true },
+      rotate('on', 1, 'weekly'),
+    ]
+    const entries = entriesForWeek(state(chores), weekStart)
+    expect(entries.every((e) => e.chore.id === 'on')).toBe(true)
+    expect(entries).toHaveLength(7)
+    // The paused chore still holds slot 0, so 'on' keeps its own assignee.
+    expect(rotationOffsets(chores).get('on')).toBe(1)
+  })
+})
+
 describe('rotation stability under reorder', () => {
   it('keeps every assignee when the chores array is reordered', () => {
     const chores = [

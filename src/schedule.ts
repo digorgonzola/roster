@@ -18,6 +18,7 @@ export function weeklyOccursOn(s: WeeklySchedule, date: Date): boolean {
  *
  * - weekly chores emit one entry per selected weekday that falls in the week.
  * - one-off chores emit a single entry when their date lands inside the week.
+ * - paused (switched-off) chores emit nothing.
  *
  * Rotated chores are phase-offset so they spread across people rather than all
  * landing on the same person (see the offset maps below).
@@ -76,6 +77,7 @@ export function entriesForWeek(state: AppState, weekStart: Date): WeekEntry[] {
   const offsets = rotationOffsets(state.chores)
 
   for (const chore of state.chores) {
+    if (chore.paused) continue
     const offset = offsets.get(chore.id) ?? 0
 
     if (chore.schedule.kind === 'weekly') {

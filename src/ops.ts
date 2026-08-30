@@ -21,6 +21,8 @@ export type Op =
   | { t: 'assign'; choreId: string; date: string; choice: string | 'rotate' }
   /** Idempotent set (not a toggle), safe under replay and duplicate delivery. */
   | { t: 'setDone'; date: string; choreId: string; done: boolean }
+  /** Seasonal on/off switch. Idempotent set; true = off (see Chore.paused). */
+  | { t: 'setChorePaused'; choreId: string; paused: boolean }
   | { t: 'setWeekStartsOn'; v: 0 | 1 }
   /** Rename a day-part heading. An empty label restores the default. */
   | { t: 'setTimeSlotLabel'; slot: TimeOfDay; label: string }
@@ -93,6 +95,17 @@ export function applyOp(s: AppState, op: Op): AppState {
       else delete done[op.date]
       return { ...s, done }
     }
+
+    case 'setChorePaused':
+      return {
+        ...s,
+        chores: s.chores.map((c) => {
+          if (c.id !== op.choreId) return c
+          if (op.paused) return { ...c, paused: true }
+          const { paused: _drop, ...rest } = c
+          return rest
+        }),
+      }
 
     case 'setWeekStartsOn':
       return { ...s, weekStartsOn: op.v }
