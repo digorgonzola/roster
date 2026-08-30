@@ -80,6 +80,12 @@ export interface Chore {
    * Keeps rotations stable when the chores array is reordered or merged.
    */
   rotationOffset?: number
+  /**
+   * Seasonal on/off switch: true = the chore emits no occurrences anywhere
+   * (roster, print, calendar feeds) but keeps its schedule, assignment and
+   * rotation offset for when it's switched back on. Missing = on.
+   */
+  paused?: boolean
 }
 
 export interface AppState {

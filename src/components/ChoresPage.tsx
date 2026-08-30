@@ -26,6 +26,8 @@ interface Props {
   onSelect: (sel: ChoreSelection) => void
   onSave: (chore: Chore) => void
   onDelete: (id: string) => void
+  /** Seasonal on/off switch; applies immediately, unlike the buffered draft. */
+  onSetPaused: (id: string, paused: boolean) => void
 }
 
 interface Draft {
@@ -45,6 +47,8 @@ interface Draft {
   rotateIds: string[]
   rotatePeriod: 'daily' | 'weekly'
   byDay: Partial<Record<DayIndex, string | null>>
+  /** Carried through the draft so saving an edit never flips the switch. */
+  paused: boolean
 }
 
 const INTERVALS: { weeks: number; label: string }[] = [
@@ -81,6 +85,7 @@ const emptyDraft = (people: Person[]): Draft => ({
   rotateIds: people.map((p) => p.id),
   rotatePeriod: 'weekly',
   byDay: {},
+  paused: false,
 })
 
 function draftFromChore(c: Chore, people: Person[]): Draft {
@@ -101,6 +106,7 @@ function draftFromChore(c: Chore, people: Person[]): Draft {
     rotateIds: c.assignment.mode === 'rotate' ? c.assignment.personIds : people.map((p) => p.id),
     rotatePeriod: c.assignment.mode === 'rotate' ? (c.assignment.period ?? 'weekly') : 'weekly',
     byDay: c.assignment.mode === 'byday' ? { ...c.assignment.byDay } : {},
+    paused: c.paused ?? false,
   }
 }
 
@@ -137,10 +143,11 @@ function buildChore(draft: Draft, id: string): Chore {
           ? { kind: 'monthly', weekday: draft.monthlyWeekday, nth: draft.monthlyNth }
           : { kind: 'oneoff', date: draft.date },
     assignment,
+    ...(draft.paused ? { paused: true } : {}),
   }
 }
 
-export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selection, onSelect, onSave, onDelete }: Props) {
+export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selection, onSelect, onSave, onDelete, onSetPaused }: Props) {
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [error, setError] = useState('')
@@ -163,7 +170,14 @@ export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selecti
   const editingChore = editingId !== null ? chores.find((c) => c.id === editingId) : undefined
 
   const filtered = chores.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
-  const needCount = chores.filter(needsPerson).length
+  // Chores that are switched off aren't on the roster, so they never nag.
+  const needCount = chores.filter((c) => !c.paused && needsPerson(c)).length
+
+  // Applies straight away; the open draft follows so Save can't undo it.
+  const setPaused = (id: string, paused: boolean) => {
+    onSetPaused(id, paused)
+    if (selectedChoreId(selection) === id) setDraft((d) => (d ? { ...d, paused } : d))
+  }
 
   const submit = () => {
     if (!draft) return
@@ -194,7 +208,7 @@ export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selecti
         </div>
         <ul className="chores-list">
           {filtered.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className={`chore-item${c.paused ? ' off' : ''}`}>
               <button
                 className={`chore-row${selection === c.id ? ' selected' : ''}`}
                 onClick={() => onSelect(c.id)}
@@ -203,10 +217,15 @@ export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selecti
                   <strong>{c.name}</strong>
                   <span className="chore-row-rule">{choreRuleSummary(c)}</span>
                 </span>
-                <span className={`chore-row-tag${needsPerson(c) ? ' unassigned' : ''}`}>
-                  {assigneeTag(c, people)}
+                <span className={`chore-row-tag${!c.paused && needsPerson(c) ? ' unassigned' : ''}`}>
+                  {c.paused ? 'Off' : assigneeTag(c, people)}
                 </span>
               </button>
+              <OnOffSwitch
+                on={!c.paused}
+                label={c.paused ? `Turn ${c.name} on` : `Turn ${c.name} off`}
+                onToggle={() => setPaused(c.id, !c.paused)}
+              />
             </li>
           ))}
         </ul>
@@ -238,6 +257,7 @@ export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selecti
             onSubmit={submit}
             onCancel={() => onSelect(null)}
             onDelete={editingId !== null ? () => { onDelete(editingId); onSelect(null) } : undefined}
+            onTogglePaused={editingId !== null ? () => setPaused(editingId, !draft.paused) : undefined}
           />
         )}
       </div>
@@ -259,9 +279,11 @@ interface EditorProps {
   onSubmit: () => void
   onCancel: () => void
   onDelete?: () => void
+  /** Present only for existing chores; flips the on/off switch immediately. */
+  onTogglePaused?: () => void
 }
 
-function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabels, isNew, editingName, error, onSubmit, onCancel, onDelete }: EditorProps) {
+function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabels, isNew, editingName, error, onSubmit, onCancel, onDelete, onTogglePaused }: EditorProps) {
   const toggleDay = (d: DayIndex) =>
     setDraft((prev) => prev && ({
       ...prev,
@@ -292,6 +314,18 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
       <div className="editor-title">
         <h3>{isNew ? 'Add chore' : 'Edit chore'}</h3>
         {editingName && <span className="text-muted editor-subtitle">{editingName}</span>}
+        {onTogglePaused && (
+          <span className="editor-onoff">
+            <span className={draft.paused ? 'text-muted' : ''}>
+              {draft.paused ? 'Off the roster' : 'On the roster'}
+            </span>
+            <OnOffSwitch
+              on={!draft.paused}
+              label={draft.paused ? 'Turn this chore on' : 'Turn this chore off'}
+              onToggle={onTogglePaused}
+            />
+          </span>
+        )}
       </div>
       <hr className="hr" />
 
@@ -521,6 +555,25 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
         )}
       </div>
     </div>
+  )
+}
+
+/** Flat on/off switch: square knob slides across a bordered track. */
+function OnOffSwitch({ on, label, onToggle }: { on: boolean; label: string; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      title={label}
+      className={`onoff${on ? ' on' : ''}`}
+      onClick={onToggle}
+    >
+      <span className="onoff-track">
+        <span className="onoff-knob" />
+      </span>
+    </button>
   )
 }
 

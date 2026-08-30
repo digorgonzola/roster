@@ -122,6 +122,23 @@ describe('applyOp', () => {
     expect(applyOp(s, off)).toBe(s)
   })
 
+  it('setChorePaused switches a chore off and back on', () => {
+    let s = base()
+    s.chores = [chore({ id: 'c1' }), chore({ id: 'c2' })]
+
+    s = applyOp(s, { t: 'setChorePaused', choreId: 'c1', paused: true })
+    expect(s.chores[0].paused).toBe(true)
+    expect(s.chores[1].paused).toBeUndefined()
+
+    // Idempotent: replay and duplicate delivery land on the same state.
+    const again = applyOp(s, { t: 'setChorePaused', choreId: 'c1', paused: true })
+    expect(again.chores[0]).toEqual(s.chores[0])
+
+    // Switching back on removes the key, matching the missing-= default style.
+    s = applyOp(s, { t: 'setChorePaused', choreId: 'c1', paused: false })
+    expect('paused' in s.chores[0]).toBe(false)
+  })
+
   it('setWeekStartsOn and replaceState apply directly', () => {
     let s = base()
     s = applyOp(s, { t: 'setWeekStartsOn', v: 0 })
