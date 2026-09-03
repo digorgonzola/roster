@@ -68,6 +68,13 @@ const NTHS: { value: MonthlyNth; label: string }[] = [
 
 const EFFORTS: Effort[] = ['light', 'medium', 'heavy']
 
+// Quick-select shortcuts for the weekly day toggles (indices: Mon=0 … Sun=6).
+const DAY_PRESETS: { label: string; days: DayIndex[] }[] = [
+  { label: 'Weekdays', days: [0, 1, 2, 3, 4] },
+  { label: 'Weekend', days: [5, 6] },
+  { label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] },
+]
+
 const emptyDraft = (people: Person[]): Draft => ({
   name: '',
   notes: '',
@@ -292,6 +299,8 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
       days: prev.days.includes(d) ? prev.days.filter((x) => x !== d) : [...prev.days, d].sort((a, b) => a - b),
     }))
 
+  const setDays = (days: DayIndex[]) => setDraft((prev) => prev && ({ ...prev, days }))
+
   const toggleRotate = (id: string) =>
     setDraft((prev) => prev && ({
       ...prev,
@@ -402,6 +411,18 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
                     {label}
                   </button>
                 ))}
+              </div>
+              <div className="weekday-shortcuts">
+                {DAY_PRESETS.map((p) => (
+                  <button key={p.label} type="button" className="weekday-shortcut" onClick={() => setDays([...p.days])}>
+                    {p.label}
+                  </button>
+                ))}
+                {draft.days.length > 0 && (
+                  <button type="button" className="weekday-shortcut" onClick={() => setDays([])}>
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
             <div className="editor-cols">
