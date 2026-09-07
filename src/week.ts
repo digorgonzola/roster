@@ -1,4 +1,4 @@
-import type { DayIndex } from './types'
+import type { DayIndex, WeeklySchedule } from './types'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const MS_PER_WEEK = 7 * MS_PER_DAY
@@ -64,13 +64,31 @@ export function dayNumber(d: Date): number {
   return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / MS_PER_DAY)
 }
 
+/** dayNumber of Monday 1970-01-05, the start of week 0. */
+export const WEEK_ZERO_DAY_NUMBER = 4
+
 /**
  * Monday-anchored week number for a date, independent of the Mon/Sun display
  * setting, so weekly rotations stay stable when the user toggles week start.
- * Anchored to Monday 1970-01-05 (dayNumber 4).
  */
 export function weekNumber(d: Date): number {
-  return Math.floor((dayNumber(d) - 4) / 7)
+  return Math.floor((dayNumber(d) - WEEK_ZERO_DAY_NUMBER) / 7)
+}
+
+/** Repeat interval of a weekly schedule in weeks; missing or < 2 means every week. */
+export function weeklyInterval(s: WeeklySchedule): number {
+  return s.intervalWeeks && s.intervalWeeks > 1 ? s.intervalWeeks : 1
+}
+
+/**
+ * Ordinal of the occurrence-week `d` falls in: counts only the weeks a
+ * fortnightly / every-N-weeks chore actually runs, so rotations advance one
+ * step per occurrence week rather than N steps.
+ */
+export function occurrenceWeek(s: WeeklySchedule, d: Date): number {
+  const interval = weeklyInterval(s)
+  if (interval === 1) return weekNumber(d)
+  return Math.floor((weekNumber(d) - (s.anchorWeek ?? 0)) / interval)
 }
 
 /** Absolute month index (year*12+month), for advancing monthly rotations. */

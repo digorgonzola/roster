@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import type { Chore, DayIndex, Effort, MonthlyNth, Person, TimeOfDay } from '../types'
-import { DAY_NAMES, DAY_NAMES_LONG, addDays, toDayIndex, weekNumber, ymd } from '../week'
+import { DAY_NAMES, DAY_NAMES_LONG, addDays, toDayIndex, weekNumber, weeklyInterval, ymd } from '../week'
 import { rotationOffsets, weeklyOccursOn } from '../schedule'
 import { assigneeForDate } from '../rotation'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
@@ -614,14 +614,20 @@ function RotatePreview({ draft, chores, people, weekStart }: {
     const chore = buildChore({ ...draft, mode: 'rotate' }, id)
     const offset = rotationOffsets([...chores, chore]).get(id) ?? 0
     const dates: Date[] = []
-    if (draft.rotatePeriod === 'weekly') {
+    if (chore.schedule.kind !== 'weekly') {
       for (let k = 0; k < 4; k++) dates.push(addDays(weekStart, k * 7 + 3))
     } else {
-      // Daily advance: the next 4 scheduled occurrences.
-      const days = draft.scheduleKind === 'weekly' && draft.days.length ? draft.days : [0, 1, 2, 3, 4, 5, 6]
-      for (let i = 0; i < 28 && dates.length < 4; i++) {
+      // Next 4 occurrences (daily advance) or occurrence weeks (weekly advance),
+      // skipping the weeks a fortnightly / every-N-weeks chore doesn't run.
+      const sched = chore.schedule
+      const days = sched.days.length ? sched.days : [0, 1, 2, 3, 4, 5, 6]
+      const perWeek = draft.rotatePeriod === 'weekly'
+      const horizon = 7 * 4 * weeklyInterval(sched) + 7
+      for (let i = 0; i < horizon && dates.length < 4; i++) {
         const d = addDays(weekStart, i)
-        if (days.includes(toDayIndex(d))) dates.push(d)
+        if (!days.includes(toDayIndex(d)) || !weeklyOccursOn(sched, d)) continue
+        if (perWeek && dates.some((x) => weekNumber(x) === weekNumber(d))) continue
+        dates.push(d)
       }
     }
     return dates.map((d) => ({
