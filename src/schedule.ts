@@ -1,11 +1,11 @@
 import type { AppState, Chore, WeeklySchedule, WeekEntry } from './types'
 import { assigneeForDate } from './rotation'
-import { addDays, isDateInWeek, isNthWeekdayOfMonth, parseYmd, toDayIndex, weekNumber, ymd } from './week'
+import { addDays, isDateInWeek, isNthWeekdayOfMonth, parseYmd, toDayIndex, weekNumber, weeklyInterval, ymd } from './week'
 import { timeOrder } from './timeofday'
 
 /** Does a (possibly fortnightly/monthly) weekly chore run in the week of `date`? */
 export function weeklyOccursOn(s: WeeklySchedule, date: Date): boolean {
-  const interval = s.intervalWeeks && s.intervalWeeks > 1 ? s.intervalWeeks : 1
+  const interval = weeklyInterval(s)
   if (interval === 1) return true
   const anchor = s.anchorWeek ?? 0
   return (((weekNumber(date) - anchor) % interval) + interval) % interval === 0
