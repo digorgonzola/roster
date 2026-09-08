@@ -1,8 +1,18 @@
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
-import type { AppState, Chore, Person } from '../types'
+import type { AppState, Chore, DayIndex, Person, TimeOfDay } from '../types'
 import { entriesForWeek } from '../schedule'
 import { PALETTE, nextColor, patternFor } from '../palette'
+import { DAY_NAMES, DAY_NAMES_LONG } from '../week'
+import { slotLabel } from '../timeofday'
+import {
+  DAY_PARTS,
+  blockedParts,
+  isAllDayUnavailable,
+  unavailabilitySummary,
+  withDayToggled,
+  withPartToggled,
+} from '../availability'
 import { Avatar, Swatch } from './Avatar'
 
 interface Props {
@@ -30,6 +40,7 @@ function choreCount(chores: Chore[], personId: string): number {
 export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Props) {
   const [name, setName] = useState('')
   const [color, setColor] = useState<string>(() => nextColor(state.people.map((p) => p.color)))
+  const [availabilityFor, setAvailabilityFor] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
 
   const entries = entriesForWeek(state, weekStart)
@@ -64,16 +75,20 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Prop
             <tr>
               <th>Person</th>
               <th>Swatch</th>
-              <th>Chores</th>
-              <th>Week load</th>
+              <th className="pt-wide">Chores</th>
+              <th className="pt-wide">Week load</th>
+              <th>Unavailable</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {state.people.map((p) => {
               const n = counts.get(p.id) ?? 0
+              const editingAvailability = availabilityFor === p.id
+              const summary = unavailabilitySummary(p)
               return (
-                <tr key={p.id}>
+                <Fragment key={p.id}>
+                <tr>
                   <td>
                     <div className="pt-person">
                       <Avatar person={p} size={24} />
@@ -98,9 +113,18 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Prop
                       <span className="text-muted">{patternLabel(p.color)}</span>
                     </button>
                   </td>
-                  <td className="pt-count">{choreCount(state.chores, p.id)}</td>
-                  <td>
+                  <td className="pt-count pt-wide">{choreCount(state.chores, p.id)}</td>
+                  <td className="pt-wide">
                     <span className="pt-load"><span style={{ width: `${(n / max) * 100}%` }} /></span>
+                  </td>
+                  <td className="pt-avail">
+                    <button
+                      className={`pt-avail-btn${summary ? '' : ' text-muted'}`}
+                      aria-expanded={editingAvailability}
+                      onClick={() => setAvailabilityFor(editingAvailability ? null : p.id)}
+                    >
+                      {summary || 'Always free'}
+                    </button>
                   </td>
                   <td className="pt-actions">
                     <button className="btn btn-ghost" onClick={() => onDelete(p.id)} aria-label={`Remove ${p.name}`}>
@@ -108,6 +132,14 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Prop
                     </button>
                   </td>
                 </tr>
+                {editingAvailability && (
+                  <tr className="pt-avail-row">
+                    <td colSpan={6}>
+                      <AvailabilityGrid person={p} labels={state.timeOfDayLabels} onUpdate={onUpdate} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               )
             })}
           </tbody>
@@ -147,6 +179,62 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Prop
         <button className="btn btn-secondary add-person-btn" onClick={add}>Add</button>
       </div>
       <p className="text-muted footnote">Swatch is colour + pattern, so the printed roster still reads in black and white.</p>
+    </div>
+  )
+}
+
+/**
+ * Weekday × day-part toggles for a person's standing commitments. A day
+ * header blocks or frees the whole day; each cell blocks one part.
+ */
+function AvailabilityGrid({ person, labels, onUpdate }: {
+  person: Person
+  labels: Partial<Record<TimeOfDay, string>> | undefined
+  onUpdate: (person: Person) => void
+}) {
+  return (
+    <div className="avail">
+      <div className="avail-grid" role="group" aria-label={`When ${person.name} is unavailable`}>
+        <span />
+        {DAY_NAMES.map((label, i) => {
+          const day = i as DayIndex
+          const allDay = isAllDayUnavailable(person, day)
+          return (
+            <button
+              key={label}
+              type="button"
+              className={`avail-day${allDay ? ' on' : ''}`}
+              aria-pressed={allDay}
+              title={`${allDay ? 'Free' : 'Block'} all ${DAY_NAMES_LONG[day]}`}
+              onClick={() => onUpdate(withDayToggled(person, day))}
+            >
+              {label}
+            </button>
+          )
+        })}
+        {DAY_PARTS.map((part) => (
+          <Fragment key={part}>
+            <span className="avail-part">{slotLabel(labels, part)}</span>
+            {DAY_NAMES.map((_, i) => {
+              const day = i as DayIndex
+              const on = blockedParts(person, day).includes(part)
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={`avail-cell${on ? ' on' : ''}`}
+                  aria-pressed={on}
+                  aria-label={`${DAY_NAMES_LONG[day]} ${slotLabel(labels, part)}`}
+                  onClick={() => onUpdate(withPartToggled(person, day, part))}
+                />
+              )
+            })}
+          </Fragment>
+        ))}
+      </div>
+      <p className="text-muted avail-hint">
+        Rotating chores skip {person.name} at these times. Chores fixed to {person.name} stay put and show a warning.
+      </p>
     </div>
   )
 }

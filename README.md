@@ -35,7 +35,10 @@ every run. In CI, install with `pnpm install --frozen-lockfile`.
 ## Using it
 
 - **People** — add household members; each gets a colour (also shown as an
-  initials + fill-pattern swatch so it survives grayscale printing).
+  initials + fill-pattern swatch so it survives grayscale printing). Mark when
+  someone is **unavailable** (Monday afternoon dance, all-day Wednesday soccer):
+  rotating chores skip them at those times and hand the turn to the next person,
+  while chores fixed to them stay put and show a warning in the editor.
 - **Chores** — name it, set effort, set a **time of day** (Morning / Afternoon /
   Evening / Anytime) so the day reads in order — morning "before school" tasks
   first — then choose a schedule:

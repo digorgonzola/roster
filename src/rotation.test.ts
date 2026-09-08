@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Chore, Person, WeeklySchedule } from './types'
+import type { Chore, DayPart, Person, WeeklySchedule } from './types'
 import { assigneeForDate } from './rotation'
 import { entriesForWeek } from './schedule'
 import { addDays, dayNumber, weekNumber } from './week'
@@ -66,5 +66,40 @@ describe('rotate weekly', () => {
       expect(assigneeForDate(c, d, people, 2)?.id).toBe(ids[(weekNumber(d) + 2) % 4])
       expect(assigneeForDate(c, addDays(d, 4), people, 2)?.id).toBe(ids[(weekNumber(d) + 2) % 4])
     }
+  })
+})
+
+describe('unavailable people', () => {
+  const away = (id: string, day: number, parts: DayPart[]) =>
+    people.map((p) => (p.id === id ? { ...p, unavailable: { [day]: parts } } : p))
+  const wholeDay: DayPart[] = ['morning', 'afternoon', 'evening']
+
+  it('hands a rotated occurrence to the next available person', () => {
+    // Weekly rotation on Mondays: offset 0 in week of `monday` lands on ids[weekNumber % 4].
+    const c = { ...chore({ kind: 'weekly', days: [0] }, 'weekly'), timeOfDay: 'afternoon' as const }
+    const expected = ids[weekNumber(monday) % 4]
+    const next = ids[(weekNumber(monday) + 1) % 4]
+    expect(assigneeForDate(c, monday, people)?.id).toBe(expected)
+    expect(assigneeForDate(c, monday, away(expected, 0, ['afternoon']))?.id).toBe(next)
+  })
+
+  it('does not skip for a different day-part or an anytime chore on a part-blocked day', () => {
+    const c = chore({ kind: 'weekly', days: [0] }, 'weekly')
+    const expected = ids[weekNumber(monday) % 4]
+    const partly = away(expected, 0, ['afternoon'])
+    expect(assigneeForDate({ ...c, timeOfDay: 'morning' }, monday, partly)?.id).toBe(expected)
+    expect(assigneeForDate(c, monday, partly)?.id).toBe(expected)
+    expect(assigneeForDate(c, monday, away(expected, 0, wholeDay))?.id).not.toBe(expected)
+  })
+
+  it('is unassigned when everyone is away', () => {
+    const c = chore({ kind: 'weekly', days: [2] }, 'daily')
+    const all = people.map((p) => ({ ...p, unavailable: { 2: wholeDay } }))
+    expect(assigneeForDate(c, addDays(monday, 2), all)).toBeNull()
+  })
+
+  it('leaves fixed assignments alone', () => {
+    const c: Chore = { id: 'm', name: 'm', schedule: { kind: 'weekly', days: [0] }, assignment: { mode: 'manual', personId: 'p1' } }
+    expect(assigneeForDate(c, monday, away('p1', 0, wholeDay))?.id).toBe('p1')
   })
 })

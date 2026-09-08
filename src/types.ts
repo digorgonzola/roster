@@ -8,11 +8,20 @@ export type Effort = 'light' | 'medium' | 'heavy'
 /** When in the day a chore happens, so a day reads morning → evening. */
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'anytime'
 
+/** A concrete part of the day; 'anytime' spans all three. */
+export type DayPart = Exclude<TimeOfDay, 'anytime'>
+
 export interface Person {
   id: string
   name: string
   /** On-screen colour only. The print view relies on name + initials + pattern. */
   color: string
+  /**
+   * Standing weekly commitments (dance, sport, work) when this person can't do
+   * chores: weekday → blocked day-parts. Rotations skip them on those
+   * occurrences; fixed assignments warn. Missing day = free all day.
+   */
+  unavailable?: Partial<Record<DayIndex, DayPart[]>>
 }
 
 /** Recurring on one or more weekdays. */
