@@ -508,6 +508,8 @@ select.input { width: auto; min-width: 160px; }
 .byday-row { display: flex; align-items: center; gap: var(--space-2); }
 .byday-day { width: 44px; font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 13px; }
 .editor-error { color: var(--color-danger-text); font-size: 13px; margin: 0; }
+.editor-warn { color: var(--color-warning-text); font-size: 13px; margin: 0; }
+.editor-note { font-size: 13px; margin: 0; }
 .editor-actions { display: flex; gap: var(--space-2); align-items: center; }
 .editor-delete { margin-left: auto; }
 
@@ -535,6 +537,35 @@ select.input { width: auto; min-width: 160px; }
 .pt-load > span { display: block; height: 100%; background: var(--color-text); min-width: 2px; }
 .pt-actions { text-align: right; }
 .pt-actions .btn { font-size: 13px; }
+.pt-avail-btn {
+  cursor: pointer; font-size: 13px; padding: var(--space-1) 0; text-align: left;
+  background: none; border: none; border-bottom: 1px solid transparent; color: var(--color-text);
+}
+.pt-avail-btn:hover, .pt-avail-btn[aria-expanded="true"] { border-bottom-color: var(--color-text); }
+.pt-avail-row > td { padding: var(--space-3) var(--space-3) var(--space-4); background: var(--color-surface); }
+.avail { display: flex; flex-direction: column; gap: var(--space-3); max-width: 520px; }
+.avail-grid {
+  display: grid; grid-template-columns: minmax(0, 96px) repeat(7, minmax(0, 1fr));
+  gap: var(--space-1); align-items: center;
+}
+.avail-day, .avail-cell {
+  height: 36px; cursor: pointer; font-size: 13px;
+  border: 1px solid var(--color-divider); background: var(--color-bg);
+}
+.avail-day:hover, .avail-cell:hover { border-color: var(--color-text); }
+.avail-day.on {
+  background: var(--color-text); border-color: var(--color-text); color: var(--color-bg);
+  font-weight: var(--font-heading-weight); font-family: var(--font-heading);
+}
+.avail-cell.on {
+  background: var(--color-warning-bg); border-color: var(--color-warning);
+  background-image: repeating-linear-gradient(45deg, transparent 0 3px, var(--color-warning) 3px 4px);
+}
+.avail-part {
+  font-size: 12px; color: var(--color-text-secondary); padding-right: var(--space-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.avail-hint { font-size: 12px; margin: 0; }
 
 .add-person { display: flex; align-items: flex-end; gap: var(--space-3); flex-wrap: wrap; }
 .add-person-name { flex: 1; min-width: 180px; margin: 0; }
@@ -706,6 +737,7 @@ select.input { width: auto; min-width: 160px; }
 .assign-name { flex: 1; font-weight: 600; }
 .assign-count { font-size: 13px; color: var(--color-text-muted); }
 .assign-count.accent { color: var(--color-accent-700); }
+.assign-count.warn { color: var(--color-warning-text); }
 .assign-rotate { border-style: dashed; background: transparent; }
 .assign-rotate-icon {
   width: 28px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center;
@@ -819,6 +851,7 @@ select.input { width: auto; min-width: 160px; }
   .tag, .rotate-chip, .pt-name { min-height: 44px; }
   .btn-icon { width: 44px; height: 44px; }
   .weekday-toggle { width: 48px; height: 44px; }
+  .avail-day, .avail-cell { height: 44px; }
   .myday-switch-btn { width: 44px; height: 44px; }
   .swatch-pick { min-width: 44px; min-height: 44px; }
 }
@@ -839,6 +872,13 @@ select.input { width: auto; min-width: 160px; }
 
 @media (max-width: 700px) {
   .page-narrow { margin-left: 0; }
+  /* Phone width: keep name, swatch, availability and remove; load lives on the dashboard. */
+  .people-table .pt-wide, .pt-swatch-btn .text-muted { display: none; }
+  .people-table th, .people-table td { padding-left: var(--space-1); padding-right: var(--space-1); }
+  .people-table th { letter-spacing: 0; }
+  .pt-name { width: 72px; }
+  .pt-avail-btn { white-space: normal; }
+  .pt-actions .btn { padding-left: var(--space-1); padding-right: var(--space-1); }
   .print-layouts { grid-template-columns: 1fr; }
   .assign-backdrop { place-items: end stretch; padding: 0; }
   .assign-sheet { width: 100%; box-shadow: none; padding-bottom: var(--space-6); }

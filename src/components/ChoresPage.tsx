@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import type { Chore, DayIndex, Effort, MonthlyNth, Person, TimeOfDay } from '../types'
-import { DAY_NAMES, DAY_NAMES_LONG, addDays, toDayIndex, weekNumber, weeklyInterval, ymd } from '../week'
+import { DAY_NAMES, DAY_NAMES_LONG, addDays, parseYmd, toDayIndex, weekNumber, weeklyInterval, ymd } from '../week'
+import { isUnavailable } from '../availability'
 import { rotationOffsets, weeklyOccursOn } from '../schedule'
 import { assigneeForDate } from '../rotation'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
@@ -115,6 +116,26 @@ function draftFromChore(c: Chore, people: Person[]): Draft {
     byDay: c.assignment.mode === 'byday' ? { ...c.assignment.byDay } : {},
     paused: c.paused ?? false,
   }
+}
+
+/** Weekdays the draft occurs on, for availability checks. */
+function draftDays(draft: Draft): DayIndex[] {
+  if (draft.scheduleKind === 'weekly') return draft.days
+  if (draft.scheduleKind === 'monthly') return [draft.monthlyWeekday]
+  return draft.date ? [toDayIndex(parseYmd(draft.date))] : []
+}
+
+/** Of `days`, those on which `person` can't do a chore at the draft's time of day. */
+function clashDays(person: Person, days: DayIndex[], draft: Draft): DayIndex[] {
+  return days.filter((d) => isUnavailable(person, d, draft.timeOfDay))
+}
+
+/** "Tom (Mon, Wed), James (Wed)" for people with clashes; '' when none. */
+function clashSummary(entries: { person: Person; days: DayIndex[] }[]): string {
+  return entries
+    .filter((e) => e.days.length)
+    .map((e) => `${e.person.name} (${e.days.map((d) => DAY_NAMES[d]).join(', ')})`)
+    .join(', ')
 }
 
 function buildChore(draft: Draft, id: string): Chore {
@@ -311,6 +332,19 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
 
   const setByDay = (day: DayIndex, personId: string | null) =>
     setDraft((prev) => prev && ({ ...prev, byDay: { ...prev.byDay, [day]: personId } }))
+
+  const days = draftDays(draft)
+  const manualPerson = people.find((p) => p.id === draft.manualPersonId)
+  const manualClash = manualPerson && clashSummary([{ person: manualPerson, days: clashDays(manualPerson, days, draft) }])
+  const rotateClash = clashSummary(
+    people.filter((p) => draft.rotateIds.includes(p.id)).map((person) => ({ person, days: clashDays(person, days, draft) })),
+  )
+  const byDayClash = clashSummary(
+    people.map((person) => ({
+      person,
+      days: clashDays(person, draft.days.filter((d) => draft.byDay[d] === person.id), draft),
+    })),
+  )
 
   // 'byday' only makes sense for weekly chores; drop back to manual otherwise.
   const setScheduleKind = (kind: Draft['scheduleKind']) =>
@@ -510,6 +544,11 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+            {manualClash && (
+              <p className="editor-warn">
+                {manualClash} is marked unavailable at this time of day. The chore stays with them.
+              </p>
+            )}
           </div>
         ) : draft.mode === 'rotate' ? (
           <>
@@ -541,6 +580,9 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
                 </label>
               </span>
             </div>
+            {rotateClash && (
+              <p className="text-muted editor-note">Skipped when unavailable: {rotateClash}.</p>
+            )}
             <RotatePreview draft={draft} chores={chores} people={people} weekStart={weekStart} />
           </>
         ) : (
@@ -557,11 +599,18 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
                       onChange={(e) => setByDay(d, e.target.value || null)}>
                       <option value="">— Unassigned —</option>
                       {people.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                        <option key={p.id} value={p.id}>
+                          {p.name}{isUnavailable(p, d, draft.timeOfDay) ? ' · unavailable' : ''}
+                        </option>
                       ))}
                     </select>
                   </div>
                 ))}
+                {byDayClash && (
+                  <p className="editor-warn">
+                    Marked unavailable at this time of day: {byDayClash}. The chore stays with them.
+                  </p>
+                )}
               </div>
             )}
           </div>

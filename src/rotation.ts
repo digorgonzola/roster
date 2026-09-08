@@ -1,4 +1,5 @@
 import type { Chore, Person, Schedule } from './types'
+import { isUnavailable } from './availability'
 import { WEEK_ZERO_DAY_NUMBER, dayNumber, monthIndex, occurrenceWeek, toDayIndex, weekNumber } from './week'
 
 /**
@@ -8,6 +9,11 @@ import { WEEK_ZERO_DAY_NUMBER, dayNumber, monthIndex, occurrenceWeek, toDayIndex
  * - rotate weekly: same person for the whole week, advancing one person each
  *   week the chore occurs.
  * - rotate daily: advances one person each occurrence.
+ *
+ * A rotation skips anyone unavailable at the chore's time of day on that
+ * weekday (see availability.ts), handing the occurrence to the next available
+ * person in the list; it is null when nobody can. Fixed assignments (manual /
+ * byday) are the user's explicit choice and are returned as set.
  *
  * Rotation is deterministic (no stored cursor, no randomness), so navigating
  * back and forth always yields the same person, and it is keyed to Monday-anchored
@@ -40,7 +46,12 @@ export function assigneeForDate(
 
   const counter = rotationCounter(chore.schedule, date, chore.assignment.period === 'daily')
   const idx = (((counter + offset) % ids.length) + ids.length) % ids.length
-  return byId(ids[idx])
+  const day = toDayIndex(date)
+  for (let step = 0; step < ids.length; step++) {
+    const person = byId(ids[(idx + step) % ids.length])
+    if (person && !isUnavailable(person, day, chore.timeOfDay)) return person
+  }
+  return null
 }
 
 /**

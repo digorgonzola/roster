@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { RotateCw } from 'lucide-react'
 import type { AppState } from '../types'
 import { entriesForWeek } from '../schedule'
+import { isUnavailable } from '../availability'
 import { longDate } from '../labels'
+import { parseYmd, toDayIndex } from '../week'
 import { Avatar } from './Avatar'
 
 export interface AssignTarget {
@@ -23,6 +25,11 @@ interface Props {
 
 export function AssignSheet({ state, weekStart, target, onAssign, onClose }: Props) {
   const chore = state.chores.find((c) => c.id === target.choreId)
+  const day = toDayIndex(parseYmd(target.date))
+  const unavailable = (id: string) => {
+    const p = state.people.find((x) => x.id === id)
+    return !!p && !!chore && isUnavailable(p, day, chore.timeOfDay)
+  }
 
   const { counts, lightestId } = useMemo(() => {
     const entries = entriesForWeek(state, weekStart)
@@ -31,12 +38,15 @@ export function AssignSheet({ state, weekStart, target, onAssign, onClose }: Pro
     for (const e of entries) {
       if (e.assignee) counts.set(e.assignee.id, (counts.get(e.assignee.id) ?? 0) + 1)
     }
+    // Suggest the lightest *available* person; anyone away that day is still selectable.
     let lightestId: string | null = null
     for (const p of state.people) {
+      if (unavailable(p.id)) continue
       if (lightestId === null || (counts.get(p.id) ?? 0) < (counts.get(lightestId) ?? 0)) lightestId = p.id
     }
     return { counts, lightestId }
-  }, [state, weekStart])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, weekStart, target])
 
   const [choice, setChoice] = useState<AssignChoice | null>(lightestId)
 
@@ -60,6 +70,7 @@ export function AssignSheet({ state, weekStart, target, onAssign, onClose }: Pro
           {state.people.map((p) => {
             const n = counts.get(p.id) ?? 0
             const lightest = p.id === lightestId
+            const away = unavailable(p.id)
             return (
               <button
                 key={p.id}
@@ -68,8 +79,8 @@ export function AssignSheet({ state, weekStart, target, onAssign, onClose }: Pro
               >
                 <Avatar person={p} size={28} />
                 <span className="assign-name">{p.name}</span>
-                <span className={`assign-count${lightest ? ' accent' : ''}`}>
-                  {n} this week{lightest ? ' · lightest' : ''}
+                <span className={`assign-count${lightest ? ' accent' : ''}${away ? ' warn' : ''}`}>
+                  {n} this week{lightest ? ' · lightest' : ''}{away ? ' · unavailable' : ''}
                 </span>
               </button>
             )
