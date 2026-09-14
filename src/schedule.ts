@@ -1,7 +1,11 @@
-import type { AppState, Chore, WeeklySchedule, WeekEntry } from './types'
+import type { AppState, Chore, DayIndex, WeeklySchedule, WeekEntry } from './types'
 import { assigneeForDate } from './rotation'
-import { addDays, isDateInWeek, isNthWeekdayOfMonth, parseYmd, toDayIndex, weekNumber, weeklyInterval, ymd } from './week'
+import { isUnavailable } from './availability'
+import { addDays, isDateInWeek, isNthWeekdayOfMonth, parseYmd, startOfWeek, toDayIndex, weekNumber, weeklyInterval, ymd } from './week'
 import { timeOrder } from './timeofday'
+
+/** Enough hill-climbing for a household-sized week; it settles well inside this. */
+const MAX_BALANCE_PASSES = 8
 
 /** Does a (possibly fortnightly/monthly) weekly chore run in the week of `date`? */
 export function weeklyOccursOn(s: WeeklySchedule, date: Date): boolean {
@@ -11,20 +15,6 @@ export function weeklyOccursOn(s: WeeklySchedule, date: Date): boolean {
   return (((weekNumber(date) - anchor) % interval) + interval) % interval === 0
 }
 
-/**
- * Expand all chores into their occurrences within the week beginning `weekStart`.
- * This is the single source of truth that both the on-screen week view and the
- * printout render from.
- *
- * - weekly chores emit one entry per selected weekday that falls in the week.
- * - one-off chores emit a single entry when their date lands inside the week.
- * - paused (switched-off) chores emit nothing.
- *
- * Rotated chores are phase-offset so they spread across people rather than all
- * landing on the same person (see the offset maps below).
- *
- * Entries are sorted by day, then time of day, then chore name, for stable display.
- */
 /**
  * Phase offsets so rotated chores stagger instead of colliding. Daily, weekly
  * and monthly rotations are numbered in *separate* sequences because they
@@ -72,7 +62,50 @@ export function nextRotationOffset(existing: Chore[], chore: Chore): number {
   return next
 }
 
+/**
+ * Expand all chores into their occurrences within the week beginning `weekStart`.
+ * This is the single source of truth that both the on-screen week view and the
+ * printout render from.
+ *
+ * - weekly chores emit one entry per selected weekday that falls in the week.
+ * - one-off chores emit a single entry when their date lands inside the week.
+ * - paused (switched-off) chores emit nothing.
+ *
+ * Rotated chores are phase-offset so they spread across people rather than all
+ * landing on the same person (see the offset maps above), and then balanced so
+ * no one person collects a day's worth of chores while someone else has none.
+ *
+ * Entries are sorted by day, then time of day, then chore name, for stable display.
+ */
 export function entriesForWeek(state: AppState, weekStart: Date): WeekEntry[] {
+  // Balancing makes an occurrence's assignee depend on the rest of its week, so
+  // the window has to be the Monday week, not the displayed one: otherwise the
+  // roster would reshuffle when the Mon/Sun display setting changed, and the ICS
+  // feed (which walks overlapping display weeks and de-dupes by UID) could emit
+  // two different assignees for one date.
+  const monday = startOfWeek(weekStart, 1)
+  const covering = monday.getTime() === weekStart.getTime() ? [monday] : [monday, addDays(monday, 7)]
+  const from = weekStart.getTime()
+  const to = addDays(weekStart, 7).getTime()
+
+  const entries = covering
+    .flatMap((ws) => balanceDailyLoad(expandWeek(state, ws)))
+    .filter((e) => {
+      const t = parseYmd(e.date).getTime()
+      return t >= from && t < to
+    })
+
+  entries.sort(
+    (a, b) =>
+      a.dayIndex - b.dayIndex ||
+      timeOrder(a.chore.timeOfDay) - timeOrder(b.chore.timeOfDay) ||
+      a.chore.name.localeCompare(b.chore.name),
+  )
+  return entries
+}
+
+/** Every occurrence in the 7 days from `weekStart`, before any balancing. */
+function expandWeek(state: AppState, weekStart: Date): WeekEntry[] {
   const entries: WeekEntry[] = []
   const offsets = rotationOffsets(state.chores)
 
@@ -108,11 +141,68 @@ export function entriesForWeek(state: AppState, weekStart: Date): WeekEntry[] {
     }
   }
 
-  entries.sort(
-    (a, b) =>
-      a.dayIndex - b.dayIndex ||
-      timeOrder(a.chore.timeOfDay) - timeOrder(b.chore.timeOfDay) ||
-      a.chore.name.localeCompare(b.chore.name),
-  )
   return entries
+}
+
+/**
+ * Even out how much each person has to do on any one day.
+ *
+ * Rotations advance on their own clocks and never look at one another, so one
+ * person can collect several chores on a day another has none. This trades the
+ * assignees of two occurrences *of the same chore* on different days, which
+ * leaves every person's weekly total for that chore untouched: it can move work
+ * off a crowded day without undoing the rotation's own fairness.
+ *
+ * Fixed assignments (manual / byday) are the user's explicit choice and never
+ * move, though they still count towards a person's load for the day. A trade is
+ * only made when both people are free at the chore's time of day on the day they
+ * are moving to.
+ */
+function balanceDailyLoad(entries: WeekEntry[]): WeekEntry[] {
+  const out = [...entries]
+  const key = (day: DayIndex, id: string) => `${day}:${id}`
+  const load = new Map<string, number>()
+  const at = (day: DayIndex, id: string) => load.get(key(day, id)) ?? 0
+  const bump = (day: DayIndex, id: string, by: number) => load.set(key(day, id), at(day, id) + by)
+  for (const e of out) if (e.assignee) bump(e.dayIndex, e.assignee.id, 1)
+
+  const byChore = new Map<string, number[]>()
+  for (let i = 0; i < out.length; i++) {
+    const e = out[i]
+    if (e.chore.assignment.mode !== 'rotate' || !e.assignee) continue
+    const seen = byChore.get(e.chore.id)
+    if (seen) seen.push(i)
+    else byChore.set(e.chore.id, [i])
+  }
+
+  for (let pass = 0; pass < MAX_BALANCE_PASSES; pass++) {
+    let traded = false
+    for (const seen of byChore.values()) {
+      for (let a = 0; a < seen.length; a++) {
+        for (let b = a + 1; b < seen.length; b++) {
+          const x = out[seen[a]]
+          const y = out[seen[b]]
+          const px = x.assignee
+          const py = y.assignee
+          if (!px || !py || px.id === py.id || x.dayIndex === y.dayIndex) continue
+          if (isUnavailable(px, y.dayIndex, y.chore.timeOfDay)) continue
+          if (isUnavailable(py, x.dayIndex, x.chore.timeOfDay)) continue
+          // Change in Σ load², which falls when the two busiest pairings break up.
+          const delta =
+            2 * (at(x.dayIndex, py.id) + at(y.dayIndex, px.id)
+               - at(x.dayIndex, px.id) - at(y.dayIndex, py.id)) + 4
+          if (delta >= 0) continue
+          bump(x.dayIndex, px.id, -1)
+          bump(x.dayIndex, py.id, 1)
+          bump(y.dayIndex, py.id, -1)
+          bump(y.dayIndex, px.id, 1)
+          out[seen[a]] = { ...x, assignee: py }
+          out[seen[b]] = { ...y, assignee: px }
+          traded = true
+        }
+      }
+    }
+    if (!traded) break
+  }
+  return out
 }
