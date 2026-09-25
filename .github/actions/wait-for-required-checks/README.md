@@ -11,7 +11,7 @@ gated by `paths:`.
 
 **Vendored** from the `irt-flight-manager` repo (itself adapted from an
 internal reusable action in a private org) so this repo has no cross-repo
-dependency. Being a local (`./`) action, it also needs **no** entry in the
+dependency. Being a same-repo (`$/`) action, it also needs **no** entry in the
 repo's Actions allowlist. Implemented in Node (`index.cjs`, zero npm deps,
 built-in `fetch`) for readability and testability.
 
@@ -36,7 +36,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read   # checkout the base-branch copy of this action
+  contents: read   # fetch the `$/` action from this repo
   checks: read
 
 jobs:
@@ -45,12 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@<sha>   # base ref under pull_request_target
-        with:
-          persist-credentials: false
-          sparse-checkout: .github/actions/wait-for-required-checks
-          sparse-checkout-cone-mode: false
-      - uses: ./.github/actions/wait-for-required-checks
+      - uses: $/.github/actions/wait-for-required-checks   # base commit under pull_request_target; no checkout
         with:
           required-checks: |
             Lint, Type Check & Test
@@ -60,15 +55,14 @@ jobs:
 Then point the ruleset's `required_status_checks` at the single context
 `Required Checks`.
 
-### Why `pull_request_target` + base checkout
+### Why `pull_request_target` + `$/`
 
 `pull_request_target` loads the workflow **and** this action from the base
-branch, so a PR cannot tamper with the gate via its own diff. The checkout uses
-`pull_request_target`'s default ref (the **base** branch), so it pulls trusted
-code, never the PR head. The action itself does no checkout of PR code — it
-only calls the Checks API for the head SHA read from the event payload. **Do
-not** check out `github.event.pull_request.head.sha` or `run:` any PR code in
-this job.
+branch, so a PR cannot tamper with the gate via its own diff. `$/` resolves the
+action at the running workflow's commit (the **base** branch), with no checkout,
+so no PR code reaches the runner. The action only calls the Checks API for the
+head SHA read from the event payload. **Do not** check out
+`github.event.pull_request.head.sha` or `run:` any PR code in this job.
 
 ## Inputs
 
