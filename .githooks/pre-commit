@@ -7,13 +7,16 @@ pnpm exec tsc -b
 # Audit GitHub Actions workflows when any are staged. Offline + regular
 # persona to match CI's gate; the zizmor.yml workflow runs the full online
 # pass on the PR. Skips (CI still enforces) if no zizmor runner is installed.
+# Renovate bumps this pin and the `version:` input in .github/workflows/zizmor.yml
+# together.
+ZIZMOR_VERSION=1.27.0
 WORKFLOW_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^\.github/(workflows|actions)/' || true)
 if [ -n "$WORKFLOW_CHANGES" ]; then
   echo "pre-commit: zizmor (workflow security)"
   if command -v zizmor >/dev/null 2>&1; then
     zizmor --persona regular --offline .github/workflows/
   elif command -v uvx >/dev/null 2>&1; then
-    uvx zizmor@1.27.0 --persona regular --offline .github/workflows/
+    uvx "zizmor@$ZIZMOR_VERSION" --persona regular --offline .github/workflows/
   else
     echo "  ⚠ zizmor not found (install: uv tool install zizmor) — skipping; CI will enforce"
   fi
