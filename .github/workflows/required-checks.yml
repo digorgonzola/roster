@@ -46,7 +46,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read # checkout the base branch's gate action
+  contents: read # fetch the `$/` gate action from this repo
   checks: read # read check-runs on the head SHA
 
 jobs:
@@ -59,24 +59,18 @@ jobs:
       # `skipped` check be laundered into a green gate. Marking the PR ready
       # for review re-triggers this workflow (ready_for_review) and the steps
       # below then wait on the real checks. A failed step stops the job, so
-      # the checkout and wait below never run for a draft.
+      # the wait below never runs for a draft.
       - name: Fail while draft (real checks are skipped for drafts)
         if: github.event.pull_request.draft == true
         run: |
           echo "::error title=Draft PR::Type check & build are skipped for draft PRs, so the Required Checks gate does not pass while this PR is a draft. Mark the PR 'Ready for review' to run the checks and satisfy the gate."
           exit 1
 
-      # pull_request_target checks out the BASE branch by default (trusted);
-      # sparse-checkout limits it to just the vendored action. No PR code.
-      - name: Checkout base branch (gate action only)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          sparse-checkout: .github/actions/wait-for-required-checks
-          sparse-checkout-cone-mode: false
-
+      # `$/` loads the action from the commit running this workflow, which
+      # under pull_request_target is the BASE branch (trusted). No checkout,
+      # so no PR code touches the runner.
       - name: Wait for required checks
-        uses: ./.github/actions/wait-for-required-checks
+        uses: $/.github/actions/wait-for-required-checks
         with:
           # Exact check-run names (status contexts). Add new gating checks
           # here as workflows grow.

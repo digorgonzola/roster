@@ -45,12 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@<sha>   # base ref under pull_request_target
-        with:
-          persist-credentials: false
-          sparse-checkout: .github/actions/wait-for-required-checks
-          sparse-checkout-cone-mode: false
-      - uses: ./.github/actions/wait-for-required-checks
+      - uses: $/.github/actions/wait-for-required-checks   # base commit under pull_request_target; no checkout
         with:
           required-checks: |
             Lint, Type Check & Test
