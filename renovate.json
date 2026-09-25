@@ -90,7 +90,7 @@
       "automerge": true
     },
     {
-      "description": "Zizmor: the pinned CLI version and the zizmor-action release must move together in ONE gated PR. The action ships a per-version allowlist and fails with 'Unknown version' when the CLI pin is newer than the SHA-pinned action release supports (see isw-kudos/boards#341). The workflow `version:` literal is claimed twice: the built-in github-actions manager reads it as the docker dep ghcr.io/zizmorcore/zizmor, and the zizmor customManager reads it as the github-releases dep zizmorcore/zizmor. Both names are listed so a CLI bump cannot land alone. Mirrors the isw-kudos/renovate-config default preset. This rule MUST stay after the GitHub Actions automerge rule so automerge: false wins.",
+      "description": "Zizmor: the pinned CLI version and the zizmor-action release must move together in ONE gated PR. The action ships a per-version allowlist and fails with 'Unknown version' when the CLI pin is newer than the SHA-pinned action release supports (see isw-kudos/boards#341). The workflow `version:` literal is claimed twice: the zizmor customManager reads it as the github-releases dep zizmorcore/zizmor (which also bumps the hook), and the built-in github-actions manager reads it as the docker dep ghcr.io/zizmorcore/zizmor. ghcr has no release timestamps, so under the default timestamp-required minimumReleaseAgeBehaviour the ghcr dep stays pending and is dropped from the branch; it is listed only so it cannot get its own automerging branch. separateMajorMinor: false keeps a CLI major (e.g. 2.0) in the same PR as the still-0.x action instead of splitting it onto a major-zizmor branch. Mirrors the isw-kudos/renovate-config default preset. This rule MUST stay after the GitHub Actions automerge rule so automerge: false wins.",
       "groupName": "Zizmor",
       "matchPackageNames": [
         "ghcr.io/zizmorcore/zizmor",
@@ -98,6 +98,7 @@
         "zizmorcore/zizmor-action"
       ],
       "semanticCommitType": "ci",
+      "separateMajorMinor": false,
       "automerge": false,
       "dependencyDashboardApproval": true
     }
