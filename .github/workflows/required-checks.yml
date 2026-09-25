@@ -3,7 +3,7 @@ name: Required Checks
 # Single-context aggregation gate for the branch ruleset.
 #
 # This job ALWAYS runs on every PR and polls the Checks API via the vendored
-# ./.github/actions/wait-for-required-checks action. It passes when each named
+# $/.github/actions/wait-for-required-checks action. It passes when each named
 # check has succeeded, was skipped, or never registered within the grace
 # window (a source workflow's paths filter excluded this PR). It fails if any
 # named check failed. Mark THIS job's context ("Required Checks") as required
@@ -13,11 +13,11 @@ name: Required Checks
 #
 # Trigger is pull_request_target so both this workflow AND the vendored action
 # load from the base branch (main): a PR cannot disable, rename, or neuter the
-# gate by editing them in its own diff. The checkout below pulls the BASE
-# branch (the default ref for pull_request_target), never PR code, and the
+# gate by editing them in its own diff. `$/` resolves the action at the
+# running workflow's commit (the BASE branch here) with no checkout, and the
 # action runs no PR code. It only reads the Checks API for the PR head SHA
-# taken from the event payload. Do NOT change the checkout to the PR head ref
-# and do NOT add any `run:` of PR-supplied code.
+# taken from the event payload. Do NOT add a checkout of the PR head ref and
+# do NOT add any `run:` of PR-supplied code.
 #
 # Draft handling: ci.yml skips its check job for draft PRs, so "Type Check &
 # Build" posts as `skipped`, which the gate action counts as a pass (it must,
@@ -28,7 +28,7 @@ name: Required Checks
 # re-runs and waits for the real checks the moment the PR leaves draft.
 
 on:
-  pull_request_target: # zizmor: ignore[dangerous-triggers] base-branch gate; checkout is base ref, no PR code executed (see header)
+  pull_request_target: # zizmor: ignore[dangerous-triggers] base-branch gate; action loaded via $/ from base commit, no checkout, no PR code executed (see header)
     branches:
       - main
     types:
