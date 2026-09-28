@@ -53,6 +53,11 @@
       "minimumReleaseAge": "14 days"
     },
     {
+      "description": "Skip minimumReleaseAge for pin updates. Renovate does not attach a release timestamp to pins (renovatebot/renovate#40288), so under timestamp-required they stay pending forever. Mirrors the carve-out in Renovate's own security:minimumReleaseAge presets.",
+      "matchUpdateTypes": ["pin"],
+      "minimumReleaseAge": null
+    },
+    {
       "description": "GitHub Actions updates use the ci: commit type, matching repo convention",
       "matchManagers": ["github-actions"],
       "semanticCommitType": "ci"
