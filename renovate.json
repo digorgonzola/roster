@@ -47,6 +47,12 @@
       "enabled": false
     },
     {
+      "description": "Hold npm updates for the repo-wide 14 days. config:best-practices adds security:minimumReleaseAgeNpm, whose 3-day packageRule overrides the top-level minimumReleaseAge. Only timestamped update types are matched, so the preset's opt-outs for pin, replacement, and lockFileMaintenance still apply.",
+      "matchDatasources": ["npm"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
       "description": "GitHub Actions updates use the ci: commit type, matching repo convention",
       "matchManagers": ["github-actions"],
       "semanticCommitType": "ci"
