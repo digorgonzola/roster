@@ -53,8 +53,8 @@
       "minimumReleaseAge": "14 days"
     },
     {
-      "description": "Skip minimumReleaseAge for pin updates. Renovate does not attach a release timestamp to pins (renovatebot/renovate#40288), so under timestamp-required they stay pending forever. Mirrors the carve-out in Renovate's own security:minimumReleaseAge presets.",
-      "matchUpdateTypes": ["pin"],
+      "description": "Skip minimumReleaseAge for pin and lockFileMaintenance updates. Neither carries a release timestamp (renovatebot/renovate#40288), so under timestamp-required they stay pending forever; the preset's own lockFileMaintenance opt-out never matches because it filters on datasource, which lock file maintenance lacks. pnpm's minimumReleaseAge still gates the regenerated lockfile.",
+      "matchUpdateTypes": ["pin", "lockFileMaintenance"],
       "minimumReleaseAge": null
     },
     {
