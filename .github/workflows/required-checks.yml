@@ -68,7 +68,7 @@ jobs:
       - name: Fail while draft (real checks are skipped for drafts)
         if: github.event.pull_request.draft == true
         run: |
-          echo "::error title=Draft PR::Type check & build are skipped for draft PRs, so the Required Checks gate does not pass while this PR is a draft. Mark the PR 'Ready for review' to run the checks and satisfy the gate."
+          echo "::error title=Draft PR::Type check, test & build are skipped for draft PRs, so the Required Checks gate does not pass while this PR is a draft. Mark the PR 'Ready for review' to run the checks and satisfy the gate."
           exit 1
 
       # pull_request_target checks out the BASE branch by default (trusted);

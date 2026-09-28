@@ -8,8 +8,8 @@ description: >-
   / timed_out / action_required, or if the overall wait exceeds the maximum.
 
 # Vendored into this repo (rather than consumed via `uses: <org>/<repo>@sha`)
-# because the upstream reusable action lives in a private repo in a different
-# GitHub org. Logic is implemented in Node (index.cjs), see README.md.
+# so the gate has no cross-repo dependency and needs no Actions allowlist
+# entry. Logic is implemented in Node (index.cjs), see README.md.
 
 inputs:
   required-checks:

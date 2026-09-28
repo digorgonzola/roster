@@ -9,11 +9,10 @@ gated by `paths:`.
 
 ## Why it exists here
 
-**Vendored** from the `irt-flight-manager` repo (itself adapted from an
-internal reusable action in a private org) so this repo has no cross-repo
-dependency. Being a local (`./`) action, it also needs **no** entry in the
-repo's Actions allowlist. Implemented in Node (`index.cjs`, zero npm deps,
-built-in `fetch`) for readability and testability.
+**Vendored** into this repo so it has no cross-repo dependency. Being a
+local (`./`) action, it also needs **no** entry in the repo's Actions
+allowlist. Implemented in Node (`index.cjs`, zero npm deps, built-in `fetch`)
+for readability and testability.
 
 ## Why a ruleset needs it
 
