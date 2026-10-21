@@ -68,6 +68,9 @@ hoistPattern: []
 # to the latest major (v6), which postcss (^3.3.11) is not built against.
 overrides:
   'nanoid@<3.3.17': '^3.3.17'
+minimumReleaseAgeExclude:
+  # Renovate security update: vite@8.3.3
+  - vite@8.3.3
 
 # Note for CI: run `pnpm install --frozen-lockfile` so installs fail when
 # the lockfile does not match package.json.
