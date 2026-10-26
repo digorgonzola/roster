@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Household chore roster — add people & chores, weekly + one-off scheduling, grayscale-safe A4 printout.",
-  "packageManager": "pnpm@12.6.0+sha512.3ef68f951cb111ac204b4a5a16f0b2ddf0da56a96e0413e81d855d9f0b55ef926714709028e1cd00c405c2c5fb7b9e8ec4dc46777c805d0373c2f2ff00fd20ec",
+  "packageManager": "pnpm@12.12.1+sha512.b7f98934c0b1f29a65f5da52f2d7f994e7faad573ffdddea1497fb4dcb5aec051590ee7c7d95a38172b4bfae103a5b83edf2ee866e11731c2cafa96063610ac5",
   "engines": {
     "node": ">=22",
     "pnpm": ">=11"
