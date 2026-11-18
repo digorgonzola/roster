@@ -101,7 +101,7 @@ export function AssignSheet({ state, weekStart, target, onAssign, onClose }: Pro
           >
             Assign
           </button>
-          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
         </div>
       </div>
     </div>

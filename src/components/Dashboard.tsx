@@ -61,7 +61,8 @@ export function Dashboard(props: Props) {
       <div className="filter-bar no-print">
         <span className="filter-label">Filter</span>
         <button
-          className={`tag ${personFilter === null ? 'tag-outline' : 'tag-neutral'}`}
+          className={`tag${personFilter === null ? ' on' : ''}`}
+          aria-pressed={personFilter === null}
           onClick={() => props.onFilterChange(null)}
         >
           Everyone
@@ -69,7 +70,8 @@ export function Dashboard(props: Props) {
         {state.people.map((p) => (
           <button
             key={p.id}
-            className={`tag ${personFilter === p.id ? 'tag-outline' : 'tag-neutral'}`}
+            className={`tag${personFilter === p.id ? ' on' : ''}`}
+            aria-pressed={personFilter === p.id}
             onClick={() => props.onFilterChange(personFilter === p.id ? null : p.id)}
           >
             {p.name}
@@ -175,27 +177,31 @@ export function Dashboard(props: Props) {
 
         {state.chores.length > 0 && (
         <aside className="rail no-print">
-          <RailLoad state={state} entries={entries} />
-          <hr className="hr" />
-          <h6>Needs a person</h6>
-          {unassigned.length === 0 ? (
-            <p className="text-muted rail-empty">Everything has a person.</p>
-          ) : (
-            unassigned.map((e) => (
-              <button
-                key={`${e.chore.id}:${e.date}`}
-                className="rail-assign"
-                onClick={() => props.onAssign({ choreId: e.chore.id, date: e.date })}
-              >
-                <span>{e.chore.name} · {DAY_NAMES[e.dayIndex]}</span>
-                <span className="rail-assign-cta">Assign</span>
-              </button>
-            ))
-          )}
-          <hr className="hr" />
-          <button className="btn btn-secondary btn-block" onClick={props.onAddChore}>Add chore</button>
-          <button className="btn btn-secondary btn-block" onClick={props.onOpenCalendar}>Add to calendar</button>
-          <button className="btn btn-secondary btn-block" onClick={props.onExport}>Export JSON</button>
+          <section className="rail-section">
+            <RailLoad state={state} entries={entries} />
+          </section>
+          <section className="rail-section">
+            <h6>Needs a person</h6>
+            {unassigned.length === 0 ? (
+              <p className="text-muted rail-empty">Everything has a person.</p>
+            ) : (
+              unassigned.map((e) => (
+                <button
+                  key={`${e.chore.id}:${e.date}`}
+                  className="rail-assign"
+                  onClick={() => props.onAssign({ choreId: e.chore.id, date: e.date })}
+                >
+                  <span>{e.chore.name} · {DAY_NAMES[e.dayIndex]}</span>
+                  <span className="rail-assign-cta">Assign</span>
+                </button>
+              ))
+            )}
+          </section>
+          <section className="rail-section">
+            <button className="btn btn-block" onClick={props.onAddChore}>Add chore</button>
+            <button className="btn btn-block" onClick={props.onOpenCalendar}>Add to calendar</button>
+            <button className="btn btn-block" onClick={props.onExport}>Export JSON</button>
+          </section>
         </aside>
         )}
       </div>

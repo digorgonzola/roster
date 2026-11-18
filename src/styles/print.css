@@ -8,7 +8,7 @@
 
 .print-root {
   color: #000; background: #fff;
-  font-family: 'Archivo', system-ui, sans-serif;
+  font-family: var(--font-sans);
   padding: 24px 28px;
 }
 
