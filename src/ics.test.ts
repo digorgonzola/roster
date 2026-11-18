@@ -85,6 +85,23 @@ describe('buildCalendar', () => {
     ])
   })
 
+  it("emits one event per person for an 'everyone' chore, so a person feed keeps theirs", () => {
+    const bed: Chore = {
+      id: 'Bed',
+      name: 'Bed',
+      schedule: { kind: 'oneoff', date: '2026-08-25' },
+      assignment: { mode: 'everyone', personIds: ['p1', 'p2'] },
+    }
+    const all = buildCalendar(state([bed]), { start: START, weeks: 1, now: NOW })
+    expect(all.split('\r\n').filter((l) => l.startsWith('UID:'))).toEqual([
+      'UID:Bed.2026-08-25.p1@roster',
+      'UID:Bed.2026-08-25.p2@roster',
+    ])
+    const sam = buildCalendar(state([bed]), { start: START, weeks: 1, now: NOW, personId: 'p2' })
+    expect(sam).toContain('SUMMARY:Bed — Sam')
+    expect(sam).not.toContain('Alex')
+  })
+
   it('escapes commas, semicolons and newlines in text values', () => {
     const chore: Chore = {
       ...oneOff('Tidy', '2026-08-25', 'p2'),

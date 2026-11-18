@@ -1,6 +1,6 @@
 import type { AppState, Chore, DayIndex, TimeOfDay } from './types'
 import { parseYmd, toDayIndex } from './week'
-import { withRotationOffset } from './schedule'
+import { isDoneKeyFor, withRotationOffset } from './schedule'
 
 /**
  * Every roster mutation, as a plain serializable intent. The same reducer runs
@@ -19,7 +19,10 @@ export type Op =
   | { t: 'deleteChore'; id: string }
   /** From the assign sheet: a person id, or 'rotate' for everyone. */
   | { t: 'assign'; choreId: string; date: string; choice: string | 'rotate' }
-  /** Idempotent set (not a toggle), safe under replay and duplicate delivery. */
+  /**
+   * Idempotent set (not a toggle), safe under replay and duplicate delivery.
+   * `choreId` is the occurrence's done key (see doneKey in schedule.ts).
+   */
   | { t: 'setDone'; date: string; choreId: string; done: boolean }
   /** Seasonal on/off switch. Idempotent set; true = off (see Chore.paused). */
   | { t: 'setChorePaused'; choreId: string; paused: boolean }
@@ -59,7 +62,7 @@ export function applyOp(s: AppState, op: Op): AppState {
     case 'deleteChore': {
       const done: AppState['done'] = {}
       for (const [date, ids] of Object.entries(s.done)) {
-        const kept = ids.filter((x) => x !== op.id)
+        const kept = ids.filter((x) => !isDoneKeyFor(x, op.id))
         if (kept.length) done[date] = kept
       }
       return { ...s, chores: s.chores.filter((c) => c.id !== op.id), done }
@@ -79,6 +82,12 @@ export function applyOp(s: AppState, op: Op): AppState {
               assignment: { mode: 'rotate', period: 'weekly', personIds: s.people.map((p) => p.id) },
             }
             return withRotationOffset(rotated, s.chores)
+          }
+          // Join the group rather than turning the chore into a one-person one.
+          if (rest.assignment.mode === 'everyone') {
+            const ids = rest.assignment.personIds
+            if (ids.includes(op.choice)) return c
+            return { ...c, assignment: { mode: 'everyone', personIds: [...ids, op.choice] } }
           }
           if (rest.assignment.mode === 'byday') {
             const day = toDayIndex(parseYmd(op.date))

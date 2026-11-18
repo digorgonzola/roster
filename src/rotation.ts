@@ -44,6 +44,9 @@ export function assigneeForDate(
     return byId(chore.assignment.byDay[toDayIndex(date)] ?? null)
   }
 
+  // No single person: entriesForWeek expands these into one entry per person.
+  if (chore.assignment.mode === 'everyone') return null
+
   const ids = chore.assignment.personIds.filter((id) => people.some((p) => p.id === id))
   if (ids.length === 0) return null
 

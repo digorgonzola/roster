@@ -1,5 +1,6 @@
 import type { AppState, Chore, Person, TimeOfDay, WeekEntry } from './types'
 import { DAY_NAMES, DAY_NAMES_LONG, parseYmd } from './week'
+import { doneKey } from './schedule'
 
 const NTH_LABEL: Record<string, string> = {
   '1': 'First', '2': 'Second', '3': 'Third', '4': 'Fourth', last: 'Last',
@@ -40,17 +41,18 @@ export function choreRuleSummary(c: Chore): string {
 export function needsPerson(c: Chore): boolean {
   const a = c.assignment
   if (a.mode === 'manual') return a.personId == null
-  if (a.mode === 'rotate') return a.personIds.length === 0
+  if (a.mode === 'rotate' || a.mode === 'everyone') return a.personIds.length === 0
   const days = c.schedule.kind === 'weekly' ? c.schedule.days : []
   return days.some((d) => a.byDay[d] == null)
 }
 
-/** Uppercase assignee tag for a chore list row: person, ROTATE, PER DAY or UNASSIGNED. */
+/** Uppercase assignee tag for a chore list row: person, ROTATE, PER DAY, EVERYONE or UNASSIGNED. */
 export function assigneeTag(c: Chore, people: Person[]): string {
   if (needsPerson(c)) return 'Unassigned'
   const a = c.assignment
   if (a.mode === 'manual') return people.find((p) => p.id === a.personId)?.name ?? 'Unassigned'
   if (a.mode === 'rotate') return 'Rotate'
+  if (a.mode === 'everyone') return 'Everyone'
   return 'Per day'
 }
 
@@ -72,7 +74,7 @@ export function longDate(dateStr: string): string {
 
 /** Is this occurrence ticked off? */
 export function isEntryDone(done: AppState['done'], entry: WeekEntry): boolean {
-  return done[entry.date]?.includes(entry.chore.id) ?? false
+  return done[entry.date]?.includes(doneKey(entry)) ?? false
 }
 
 /** Muted meta line for a "my day" row, e.g. "Heavy · every 2 weeks". */

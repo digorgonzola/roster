@@ -44,9 +44,10 @@ interface Draft {
   monthlyNth: MonthlyNth
   monthlyWeekday: DayIndex
   date: string
-  mode: 'manual' | 'rotate' | 'byday'
+  mode: Chore['assignment']['mode']
   manualPersonId: string | null
-  rotateIds: string[]
+  /** The people a 'rotate' or 'everyone' chore covers. */
+  groupIds: string[]
   rotatePeriod: 'daily' | 'weekly'
   byDay: Partial<Record<DayIndex, string | null>>
   /** Carried through the draft so saving an edit never flips the switch. */
@@ -91,7 +92,7 @@ const emptyDraft = (people: Person[]): Draft => ({
   date: '',
   mode: 'manual',
   manualPersonId: people[0]?.id ?? null,
-  rotateIds: people.map((p) => p.id),
+  groupIds: people.map((p) => p.id),
   rotatePeriod: 'weekly',
   byDay: {},
   paused: false,
@@ -112,7 +113,9 @@ function draftFromChore(c: Chore, people: Person[]): Draft {
     date: c.schedule.kind === 'oneoff' ? c.schedule.date : '',
     mode: c.assignment.mode,
     manualPersonId: c.assignment.mode === 'manual' ? c.assignment.personId : (people[0]?.id ?? null),
-    rotateIds: c.assignment.mode === 'rotate' ? c.assignment.personIds : people.map((p) => p.id),
+    groupIds: c.assignment.mode === 'rotate' || c.assignment.mode === 'everyone'
+      ? c.assignment.personIds
+      : people.map((p) => p.id),
     rotatePeriod: c.assignment.mode === 'rotate' ? (c.assignment.period ?? 'weekly') : 'weekly',
     byDay: c.assignment.mode === 'byday' ? { ...c.assignment.byDay } : {},
     paused: c.paused ?? false,
@@ -144,7 +147,9 @@ function buildChore(draft: Draft, id: string): Chore {
   if (draft.mode === 'manual') {
     assignment = { mode: 'manual', personId: draft.manualPersonId }
   } else if (draft.mode === 'rotate') {
-    assignment = { mode: 'rotate', period: draft.rotatePeriod, personIds: draft.rotateIds }
+    assignment = { mode: 'rotate', period: draft.rotatePeriod, personIds: draft.groupIds }
+  } else if (draft.mode === 'everyone') {
+    assignment = { mode: 'everyone', personIds: draft.groupIds }
   } else {
     const byDay: Partial<Record<DayIndex, string | null>> = {}
     for (const d of draft.days) byDay[d] = draft.byDay[d] ?? null
@@ -329,12 +334,12 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
 
   const setDays = (days: DayIndex[]) => setDraft((prev) => prev && ({ ...prev, days }))
 
-  const toggleRotate = (id: string) =>
+  const toggleGroup = (id: string) =>
     setDraft((prev) => prev && ({
       ...prev,
-      rotateIds: prev.rotateIds.includes(id)
-        ? prev.rotateIds.filter((x) => x !== id)
-        : [...prev.rotateIds, id],
+      groupIds: prev.groupIds.includes(id)
+        ? prev.groupIds.filter((x) => x !== id)
+        : [...prev.groupIds, id],
     }))
 
   const setByDay = (day: DayIndex, personId: string | null) =>
@@ -343,14 +348,29 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
   const days = draftDays(draft)
   const manualPerson = people.find((p) => p.id === draft.manualPersonId)
   const manualClash = manualPerson && clashSummary([{ person: manualPerson, days: clashDays(manualPerson, days, draft) }])
-  const rotateClash = clashSummary(
-    people.filter((p) => draft.rotateIds.includes(p.id)).map((person) => ({ person, days: clashDays(person, days, draft) })),
+  const groupClash = clashSummary(
+    people.filter((p) => draft.groupIds.includes(p.id)).map((person) => ({ person, days: clashDays(person, days, draft) })),
   )
   const byDayClash = clashSummary(
     people.map((person) => ({
       person,
       days: clashDays(person, draft.days.filter((d) => draft.byDay[d] === person.id), draft),
     })),
+  )
+
+  const groupChips = (
+    <div className="rotate-chips">
+      {people.map((p) => {
+        const on = draft.groupIds.includes(p.id)
+        return (
+          <button key={p.id} type="button"
+            className={`rotate-chip${on ? ' on' : ''}`}
+            onClick={() => toggleGroup(p.id)}>
+            {on ? <><Avatar person={p} size={18} /> {p.name} <X size={12} /></> : <>+ {p.name}</>}
+          </button>
+        )
+      })}
+    </div>
   )
 
   // 'byday' only makes sense for weekly chores; drop back to manual otherwise.
@@ -536,6 +556,10 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
             checked={draft.mode === 'byday'} onChange={() => set('mode', 'byday')} />
           <span className="dot" /> Different person each weekday
         </label>
+        <label className="radio">
+          <input type="radio" name="whomode" checked={draft.mode === 'everyone'} onChange={() => set('mode', 'everyone')} />
+          <span className="dot" /> Everyone
+        </label>
       </div>
 
       <div className="panel-surface">
@@ -557,22 +581,21 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
               </p>
             )}
           </div>
+        ) : draft.mode === 'everyone' ? (
+          <>
+            <div className="field">
+              <label>Each of these people does it</label>
+              {groupChips}
+            </div>
+            {groupClash && (
+              <p className="text-muted editor-note">Skipped when unavailable: {groupClash}.</p>
+            )}
+          </>
         ) : draft.mode === 'rotate' ? (
           <>
             <div className="field">
               <label>Rotate between</label>
-              <div className="rotate-chips">
-                {people.map((p) => {
-                  const on = draft.rotateIds.includes(p.id)
-                  return (
-                    <button key={p.id} type="button"
-                      className={`rotate-chip${on ? ' on' : ''}`}
-                      onClick={() => toggleRotate(p.id)}>
-                      {on ? <><Avatar person={p} size={18} /> {p.name} <X size={12} /></> : <>+ {p.name}</>}
-                    </button>
-                  )
-                })}
-              </div>
+              {groupChips}
             </div>
             <div className="field">
               <label>Advance</label>
@@ -587,8 +610,8 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
                 </label>
               </span>
             </div>
-            {rotateClash && (
-              <p className="text-muted editor-note">Skipped when unavailable: {rotateClash}.</p>
+            {groupClash && (
+              <p className="text-muted editor-note">Skipped when unavailable: {groupClash}.</p>
             )}
             <RotatePreview draft={draft} choreId={choreId} chores={chores} people={people} weekStart={weekStart} />
           </>
@@ -665,7 +688,7 @@ function RotatePreview({ draft, choreId, chores, people, weekStart }: {
   weekStart: Date
 }) {
   const preview = useMemo(() => {
-    if (draft.rotateIds.length === 0) return []
+    if (draft.groupIds.length === 0) return []
     // Same offset the save will freeze; a stand-in id that no real chore uses
     // gives a new chore the next free slot.
     const chore = withRotationOffset(buildChore({ ...draft, mode: 'rotate' }, choreId ?? 'rotate-preview'), chores)

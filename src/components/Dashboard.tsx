@@ -1,5 +1,5 @@
 import type { AppState, WeekEntry } from '../types'
-import { entriesForWeek } from '../schedule'
+import { entriesForWeek, doneKey } from '../schedule'
 import { DAY_NAMES, daysOfWeek, toDayIndex, ymd } from '../week'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
 import { isEntryDone } from '../labels'
@@ -44,7 +44,7 @@ export function Dashboard(props: Props) {
     ].filter(Boolean).join(' ')
     return (
       <button
-        key={`${e.chore.id}:${e.date}`}
+        key={`${doneKey(e)}:${e.date}`}
         className={cls}
         onClick={() => (e.assignee ? props.onOpenChore(e.chore.id) : props.onAssign({ choreId: e.chore.id, date: e.date }))}
         title={e.assignee ? `${e.chore.name} — ${e.assignee.name}` : `${e.chore.name} — unassigned, click to assign`}

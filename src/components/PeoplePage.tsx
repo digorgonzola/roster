@@ -33,7 +33,7 @@ function choreCount(chores: Chore[], personId: string): number {
   return chores.filter((c) => {
     const a = c.assignment
     if (a.mode === 'manual') return a.personId === personId
-    if (a.mode === 'rotate') return a.personIds.includes(personId)
+    if (a.mode === 'rotate' || a.mode === 'everyone') return a.personIds.includes(personId)
     return Object.values(a.byDay).includes(personId)
   }).length
 }

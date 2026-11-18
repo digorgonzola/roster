@@ -122,7 +122,8 @@ function occurrences(state: AppState, opts: IcsOptions): WeekEntry[] {
 
 /** Stable per-occurrence id so re-fetching a feed updates rather than duplicates. */
 function occurrenceUid(e: WeekEntry): string {
-  return `${e.chore.id}.${e.date}@roster`
+  const person = e.chore.assignment.mode === 'everyone' && e.assignee ? `.${e.assignee.id}` : ''
+  return `${e.chore.id}.${e.date}${person}@roster`
 }
 
 function wrap(name: string, body: string[]): string[] {
