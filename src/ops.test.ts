@@ -184,6 +184,15 @@ describe('applyOp', () => {
     expect(s.chores[2].rotationOffset).toBe(0)
   })
 
+  it("assign adds the person to an 'everyone' chore's group, idempotently", () => {
+    let s = base()
+    s.chores = [chore({ id: 'c1', assignment: { mode: 'everyone', personIds: [] } })]
+    const op = { t: 'assign', choreId: 'c1', date: '2026-08-03', choice: 'p2' } as const
+    s = applyOp(s, op)
+    s = applyOp(s, op)
+    expect(s.chores[0].assignment).toEqual({ mode: 'everyone', personIds: ['p2'] })
+  })
+
   it('setDone is idempotent in both directions', () => {
     let s = base()
     s.chores = [chore({ id: 'c1' })]

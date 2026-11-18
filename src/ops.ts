@@ -83,6 +83,12 @@ export function applyOp(s: AppState, op: Op): AppState {
             }
             return withRotationOffset(rotated, s.chores)
           }
+          // Join the group rather than turning the chore into a one-person one.
+          if (rest.assignment.mode === 'everyone') {
+            const ids = rest.assignment.personIds
+            if (ids.includes(op.choice)) return c
+            return { ...c, assignment: { mode: 'everyone', personIds: [...ids, op.choice] } }
+          }
           if (rest.assignment.mode === 'byday') {
             const day = toDayIndex(parseYmd(op.date))
             return { ...rest, assignment: { mode: 'byday', byDay: { ...rest.assignment.byDay, [day]: op.choice } } }
