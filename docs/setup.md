@@ -75,6 +75,9 @@ warns because the config also defines `env.preview`.
 - **Workers Builds must stay disconnected** from the `roster` Worker
   (Workers → roster → Settings → Build). It cannot run migrations first, and
   with it connected, both would deploy.
+- **The custom domain is managed in the dashboard** (Workers → roster →
+  Settings → Domains & Routes), not in `wrangler.jsonc`. The production token
+  cannot read the zone, so a `routes` entry makes `wrangler deploy` fail.
 
 ## 4. Local development
 

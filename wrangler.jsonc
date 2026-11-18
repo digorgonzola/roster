@@ -5,9 +5,11 @@
   "compatibility_date": "2026-08-06",
   // Production is reachable only on the custom domain, which Access guards.
   // A workers.dev or version preview URL would serve the app outside Access.
+  // The custom domain (roster.crunchyapple.xyz) is attached in the dashboard,
+  // not in "routes": the deploy token is scoped to this Worker and cannot
+  // read the zone, so `wrangler deploy` must not manage domains.
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "roster.crunchyapple.xyz", "custom_domain": true }],
   // HOUSEHOLD_EMAILS is an optional secret (`wrangler secret put`): people
   // who join the default household at first sign-in. The Worker answers every
   // API request with 500 until the Access vars are valid (docs/setup.md).
@@ -59,9 +61,6 @@
       // (docs/setup.md). Version preview URLs stay off: they bypass that.
       "workers_dev": true,
       "preview_urls": false,
-      // routes is inheritable: without this, a preview deploy would move the
-      // production custom domain onto the preview Worker.
-      "routes": [],
       "vars": {
         "ENVIRONMENT": "preview",
         "ACCESS_TEAM_DOMAIN": "https://crunchyapple.cloudflareaccess.com",
