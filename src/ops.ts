@@ -70,18 +70,21 @@ export function applyOp(s: AppState, op: Op): AppState {
         ...s,
         chores: s.chores.map((c) => {
           if (c.id !== op.choreId) return c
+          // Dropped so withRotationOffset decides afresh: a stale offset from
+          // another group, or from before the chore stopped rotating, can clash.
+          const { rotationOffset: _offset, ...rest } = c
           if (op.choice === 'rotate') {
             const rotated: Chore = {
-              ...c,
+              ...rest,
               assignment: { mode: 'rotate', period: 'weekly', personIds: s.people.map((p) => p.id) },
             }
             return withRotationOffset(rotated, s.chores)
           }
-          if (c.assignment.mode === 'byday') {
+          if (rest.assignment.mode === 'byday') {
             const day = toDayIndex(parseYmd(op.date))
-            return { ...c, assignment: { mode: 'byday', byDay: { ...c.assignment.byDay, [day]: op.choice } } }
+            return { ...rest, assignment: { mode: 'byday', byDay: { ...rest.assignment.byDay, [day]: op.choice } } }
           }
-          return { ...c, assignment: { mode: 'manual', personId: op.choice } }
+          return { ...rest, assignment: { mode: 'manual', personId: op.choice } }
         }),
       }
 
