@@ -1,5 +1,6 @@
 import { Fragment, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { PageHeader } from './PageHeader'
 import type { AppState, Chore, DayIndex, Person, TimeOfDay } from '../types'
 import { entriesForWeek } from '../schedule'
 import { PALETTE, nextColor, patternFor } from '../palette'
@@ -60,125 +61,131 @@ export function PeoplePage({ state, weekStart, onAdd, onUpdate, onDelete }: Prop
 
   return (
     <div className="page-narrow">
-      <div className="page-title">
-        <h2>Household</h2>
-        <button className="btn btn-primary" onClick={() => nameRef.current?.focus()}>
-          <Plus size={16} /> Add person
-        </button>
-      </div>
+      <PageHeader
+        title="People"
+        description="Who shares the chores, and the days they are away."
+        actions={
+          <button className="btn btn-primary" onClick={() => nameRef.current?.focus()}>
+            <Plus size={16} /> Add person
+          </button>
+        }
+      />
 
       {state.people.length === 0 ? (
-        <p className="text-muted">No people yet — add the members of your household below.</p>
+        <p className="text-muted">No people yet. Add the members of your household below.</p>
       ) : (
-        <table className="table people-table">
-          <thead>
-            <tr>
-              <th>Person</th>
-              <th>Swatch</th>
-              <th className="pt-wide">Chores</th>
-              <th className="pt-wide">Week load</th>
-              <th>Unavailable</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {state.people.map((p) => {
-              const n = counts.get(p.id) ?? 0
-              const editingAvailability = availabilityFor === p.id
-              const summary = unavailabilitySummary(p)
-              return (
-                <Fragment key={p.id}>
-                <tr>
-                  <td>
-                    <div className="pt-person">
-                      <Avatar person={p} size={24} />
-                      <input
-                        className="pt-name"
-                        value={p.name}
-                        onChange={(e) => onUpdate({ ...p, name: e.target.value })}
-                        aria-label={`Name for ${p.name}`}
-                      />
-                    </div>
-                  </td>
-                  <td className="pt-swatch">
-                    <button
-                      className="pt-swatch-btn"
-                      title="Change swatch"
-                      onClick={() => {
-                        const i = PALETTE.indexOf(p.color as (typeof PALETTE)[number])
-                        onUpdate({ ...p, color: PALETTE[(i + 1) % PALETTE.length] })
-                      }}
-                    >
-                      <Swatch color={p.color} size={16} />
-                      <span className="text-muted">{patternLabel(p.color)}</span>
-                    </button>
-                  </td>
-                  <td className="pt-count pt-wide">{choreCount(state.chores, p.id)}</td>
-                  <td className="pt-wide">
-                    <span className="pt-load"><span style={{ width: `${(n / max) * 100}%` }} /></span>
-                  </td>
-                  <td className="pt-avail">
-                    <button
-                      className={`pt-avail-btn${summary ? '' : ' text-muted'}`}
-                      aria-expanded={editingAvailability}
-                      onClick={() => setAvailabilityFor(editingAvailability ? null : p.id)}
-                    >
-                      {summary || 'Always free'}
-                    </button>
-                  </td>
-                  <td className="pt-actions">
-                    <button className="btn btn-ghost" onClick={() => onDelete(p.id)} aria-label={`Remove ${p.name}`}>
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-                {editingAvailability && (
-                  <tr className="pt-avail-row">
-                    <td colSpan={6}>
-                      <AvailabilityGrid person={p} labels={state.timeOfDayLabels} onUpdate={onUpdate} />
+        <div className="table-wrap">
+          <table className="table people-table">
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Swatch</th>
+                <th className="pt-wide">Chores</th>
+                <th className="pt-wide">Week load</th>
+                <th>Unavailable</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {state.people.map((p) => {
+                const n = counts.get(p.id) ?? 0
+                const editingAvailability = availabilityFor === p.id
+                const summary = unavailabilitySummary(p)
+                return (
+                  <Fragment key={p.id}>
+                  <tr>
+                    <td>
+                      <div className="pt-person">
+                        <Avatar person={p} size={24} />
+                        <input
+                          className="pt-name"
+                          value={p.name}
+                          onChange={(e) => onUpdate({ ...p, name: e.target.value })}
+                          aria-label={`Name for ${p.name}`}
+                        />
+                      </div>
+                    </td>
+                    <td className="pt-swatch">
+                      <button
+                        className="pt-swatch-btn"
+                        title="Change swatch"
+                        onClick={() => {
+                          const i = PALETTE.indexOf(p.color as (typeof PALETTE)[number])
+                          onUpdate({ ...p, color: PALETTE[(i + 1) % PALETTE.length] })
+                        }}
+                      >
+                        <Swatch color={p.color} size={16} />
+                        <span className="text-muted">{patternLabel(p.color)}</span>
+                      </button>
+                    </td>
+                    <td className="pt-count pt-wide">{choreCount(state.chores, p.id)}</td>
+                    <td className="pt-wide">
+                      <span className="pt-load"><span style={{ width: `${(n / max) * 100}%` }} /></span>
+                    </td>
+                    <td className="pt-avail">
+                      <button
+                        className={`pt-avail-btn${summary ? '' : ' text-muted'}`}
+                        aria-expanded={editingAvailability}
+                        onClick={() => setAvailabilityFor(editingAvailability ? null : p.id)}
+                      >
+                        {summary || 'Always free'}
+                      </button>
+                    </td>
+                    <td className="pt-actions">
+                      <button className="btn btn-ghost" onClick={() => onDelete(p.id)} aria-label={`Remove ${p.name}`}>
+                        Remove
+                      </button>
                     </td>
                   </tr>
-                )}
-                </Fragment>
-              )
-            })}
-          </tbody>
-        </table>
+                  {editingAvailability && (
+                    <tr className="pt-avail-row">
+                      <td colSpan={6}>
+                        <AvailabilityGrid person={p} labels={state.timeOfDayLabels} onUpdate={onUpdate} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <hr className="hr" />
-      <h6>Add person</h6>
-      <div className="add-person">
-        <div className="field add-person-name">
-          <label>Name</label>
-          <input
-            ref={nameRef}
-            className="input"
-            type="text"
-            placeholder="e.g. Nan"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && add()}
-          />
-        </div>
-        <div className="field">
-          <label>Swatch</label>
-          <div className="swatch-picker" role="group" aria-label="Swatch">
-            {PALETTE.map((c) => (
-              <button
-                key={c}
-                className={`swatch-pick${color === c ? ' selected' : ''}`}
-                onClick={() => setColor(c)}
-                title={`${patternLabel(c)}`}
-              >
-                <Swatch color={c} size={22} />
-              </button>
-            ))}
+      <section className="card page-section">
+        <h2 className="section-title">Add person</h2>
+        <div className="add-person">
+          <div className="field add-person-name">
+            <label>Name</label>
+            <input
+              ref={nameRef}
+              className="input"
+              type="text"
+              placeholder="e.g. Nan"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && add()}
+            />
           </div>
+          <div className="field">
+            <label>Swatch</label>
+            <div className="swatch-picker" role="group" aria-label="Swatch">
+              {PALETTE.map((c) => (
+                <button
+                  key={c}
+                  className={`swatch-pick${color === c ? ' selected' : ''}`}
+                  onClick={() => setColor(c)}
+                  title={`${patternLabel(c)}`}
+                >
+                  <Swatch color={c} size={22} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <button className="btn add-person-btn" onClick={add}>Add</button>
         </div>
-        <button className="btn btn-secondary add-person-btn" onClick={add}>Add</button>
-      </div>
-      <p className="text-muted footnote">Swatch is colour + pattern, so the printed roster still reads in black and white.</p>
+        <p className="text-muted footnote">Swatch is colour + pattern, so the printed roster still reads in black and white.</p>
+      </section>
     </div>
   )
 }

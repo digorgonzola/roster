@@ -8,6 +8,7 @@ import { assigneeForDate } from '../rotation'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
 import { assigneeTag, choreRuleSummary, needsPerson } from '../labels'
 import { Avatar } from './Avatar'
+import { PageHeader } from './PageHeader'
 
 /** null = nothing selected, 'new' = drafting a new chore, else a chore id. */
 export type ChoreSelection = string | null
@@ -222,76 +223,79 @@ export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selecti
   }
 
   return (
-    <div className="chores-page">
-      <div className="chores-list-pane">
-        <div className="chores-toolbar">
-          <input
-            className="input"
-            type="search"
-            placeholder="Search chores"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button className="btn btn-primary" onClick={() => onSelect('new')}>
-            <Plus size={16} /> Add
-          </button>
-        </div>
-        <ul className="chores-list">
-          {filtered.map((c) => (
-            <li key={c.id} className={`chore-item${c.paused ? ' off' : ''}`}>
-              <button
-                className={`chore-row${selection === c.id ? ' selected' : ''}`}
-                onClick={() => onSelect(c.id)}
-              >
-                <span className="chore-row-main">
-                  <strong>{c.name}</strong>
-                  <span className="chore-row-rule">{choreRuleSummary(c)}</span>
-                </span>
-                <span className={`chore-row-tag${!c.paused && needsPerson(c) ? ' unassigned' : ''}`}>
-                  {c.paused ? 'Off' : assigneeTag(c, people)}
-                </span>
-              </button>
-              <OnOffSwitch
-                on={!c.paused}
-                label={c.paused ? `Turn ${c.name} on` : `Turn ${c.name} off`}
-                onToggle={() => setPaused(c.id, !c.paused)}
-              />
-            </li>
-          ))}
-        </ul>
-        <p className="chores-footer text-muted">
-          {chores.length} chore{chores.length === 1 ? '' : 's'}
-          {needCount > 0 && <> · {needCount} need{needCount === 1 ? 's' : ''} a person</>}
-        </p>
-      </div>
-
-      <div className="chores-editor-pane">
-        {draft === null ? (
-          <p className="text-muted editor-empty">
-            {chores.length === 0
-              ? 'No chores yet. Add the first one.'
-              : 'Pick a chore on the left, or add a new one.'}
+    <>
+      <PageHeader title="Chores" description="What needs doing, how often, and who does it." />
+      <div className="chores-page">
+        <div className="chores-list-pane">
+          <div className="chores-toolbar">
+            <input
+              className="input"
+              type="search"
+              placeholder="Search chores"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <button className="btn btn-primary" onClick={() => onSelect('new')}>
+              <Plus size={16} /> Add
+            </button>
+          </div>
+          <ul className="chores-list">
+            {filtered.map((c) => (
+              <li key={c.id} className={`chore-item${c.paused ? ' off' : ''}`}>
+                <button
+                  className={`chore-row${selection === c.id ? ' selected' : ''}`}
+                  onClick={() => onSelect(c.id)}
+                >
+                  <span className="chore-row-main">
+                    <strong>{c.name}</strong>
+                    <span className="chore-row-rule">{choreRuleSummary(c)}</span>
+                  </span>
+                  <span className={`chore-row-tag${!c.paused && needsPerson(c) ? ' unassigned' : ''}`}>
+                    {c.paused ? 'Off' : assigneeTag(c, people)}
+                  </span>
+                </button>
+                <OnOffSwitch
+                  on={!c.paused}
+                  label={c.paused ? `Turn ${c.name} on` : `Turn ${c.name} off`}
+                  onToggle={() => setPaused(c.id, !c.paused)}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="chores-footer text-muted">
+            {chores.length} chore{chores.length === 1 ? '' : 's'}
+            {needCount > 0 && <> · {needCount} need{needCount === 1 ? 's' : ''} a person</>}
           </p>
-        ) : (
-          <Editor
-            draft={draft}
-            set={set}
-            setDraft={setDraft}
-            people={people}
-            chores={chores}
-            weekStart={weekStart}
-            timeOfDayLabels={timeOfDayLabels}
-            isNew={selection === 'new'}
-            editingName={editingChore?.name}
-            error={error}
-            onSubmit={submit}
-            onCancel={() => onSelect(null)}
-            onDelete={editingId !== null ? () => { onDelete(editingId); onSelect(null) } : undefined}
-            onTogglePaused={editingId !== null ? () => setPaused(editingId, !draft.paused) : undefined}
-          />
-        )}
+        </div>
+
+        <div className="chores-editor-pane">
+          {draft === null ? (
+            <p className="text-muted editor-empty">
+              {chores.length === 0
+                ? 'No chores yet. Add the first one.'
+                : 'Pick a chore on the left, or add a new one.'}
+            </p>
+          ) : (
+            <Editor
+              draft={draft}
+              set={set}
+              setDraft={setDraft}
+              people={people}
+              chores={chores}
+              weekStart={weekStart}
+              timeOfDayLabels={timeOfDayLabels}
+              isNew={selection === 'new'}
+              editingName={editingChore?.name}
+              error={error}
+              onSubmit={submit}
+              onCancel={() => onSelect(null)}
+              onDelete={editingId !== null ? () => { onDelete(editingId); onSelect(null) } : undefined}
+              onTogglePaused={editingId !== null ? () => setPaused(editingId, !draft.paused) : undefined}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -621,9 +625,9 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
 
       <div className="editor-actions">
         <button className="btn btn-primary" onClick={onSubmit}>Save chore</button>
-        <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+        <button className="btn" onClick={onCancel}>Cancel</button>
         {onDelete && !isNew && (
-          <button className="btn btn-ghost editor-delete" onClick={onDelete}>Delete</button>
+          <button className="btn btn-danger editor-delete" onClick={onDelete}>Delete</button>
         )}
       </div>
     </div>

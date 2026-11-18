@@ -18,8 +18,10 @@ import {
   resetLocalHousehold,
 } from './sync/client'
 import type { InviteForMe, Me } from './sync/protocol'
-import { addDays, startOfWeek, toDayIndex } from './week'
-import { Nav, type Page } from './components/Nav'
+import { addDays, startOfWeek, toDayIndex, weekLabel } from './week'
+import { CalendarDays, ListChecks, Printer, Settings, Sun, Users } from 'lucide-react'
+import { Shell, type NavItem } from './components/Shell'
+import { PageHeader, WeekNav } from './components/PageHeader'
 import { Dashboard, type DashboardView } from './components/Dashboard'
 import { ChoresPage, type ChoreSelection } from './components/ChoresPage'
 import { PeoplePage } from './components/PeoplePage'
@@ -30,7 +32,22 @@ import { PrintRoster, type PrintLayout } from './components/PrintRoster'
 import { AssignSheet, type AssignChoice, type AssignTarget } from './components/AssignSheet'
 import { MyDay } from './components/MyDay'
 import { MobileWeek } from './components/MobileWeek'
-import { MobileTabs, type MobileTab } from './components/MobileTabs'
+type Page = 'week' | 'chores' | 'people' | 'settings' | 'print'
+type MobileTab = 'today' | 'week' | 'chores' | 'people' | 'settings'
+
+const SHARED_ITEMS: NavItem<Exclude<Page, 'print'>>[] = [
+  { key: 'week', label: 'This week', tabLabel: 'Week', icon: CalendarDays },
+  { key: 'chores', label: 'Chores', tabLabel: 'Chores', icon: ListChecks },
+  { key: 'people', label: 'People', tabLabel: 'People', icon: Users },
+  { key: 'settings', label: 'Settings', tabLabel: 'Settings', icon: Settings, isSidebarOnly: true },
+]
+
+const PAGE_ITEMS: NavItem<Page>[] = SHARED_ITEMS
+
+const MOBILE_ITEMS: NavItem<MobileTab>[] = [
+  { key: 'today', label: 'Today', tabLabel: 'Today', icon: Sun },
+  ...SHARED_ITEMS,
+]
 
 /** Below this width the desktop views fall back to the mobile day list. */
 function useIsMobile(): boolean {
@@ -294,52 +311,69 @@ export default function App() {
     <InviteBanner invite={bannerInvite} onJoin={joinHousehold} onDismiss={() => setInviteBannerDismissed(true)} />
   ) : null
 
+  const weekNav = (
+    <WeekNav
+      onPrevWeek={() => setAnchor((d) => addDays(d, -7))}
+      onThisWeek={() => setAnchor(new Date())}
+      onNextWeek={() => setAnchor((d) => addDays(d, 7))}
+    />
+  )
+
   return (
     <div className="app">
-      {banner}
       {isMobile ? (
-        <div className="mobile-shell no-print">
-          <main className="mobile-main">
-            {mobileTab === 'today' && (
-              <MyDay
-                state={state}
-                person={myDayPerson}
-                onPersonChange={setMyDayPersonId}
-                onToggleDone={toggleDone}
-              />
-            )}
-            {mobileTab === 'week' && (
-              <MobileWeek
-                state={state}
-                weekStart={weekStart}
-                onPrevWeek={() => setAnchor((d) => addDays(d, -7))}
-                onNextWeek={() => setAnchor((d) => addDays(d, 7))}
-                selectedDay={selectedDay}
-                onSelectDay={setSelectedDay}
-                onAssign={setAssignTarget}
-                onOpenChore={openChore}
-                onAddChore={() => openChore('new')}
-              />
-            )}
-            {mobileTab === 'chores' && choresPage}
-            {mobileTab === 'people' && peoplePage}
-            {mobileTab === 'settings' && settingsPage(true)}
-          </main>
-          <MobileTabs tab={mobileTab} onChange={setMobileTab} />
-        </div>
+        <Shell items={MOBILE_ITEMS} current={mobileTab} onNavigate={setMobileTab} accountKey="settings" me={me}>
+          {banner}
+          {mobileTab === 'today' && (
+            <MyDay
+              state={state}
+              person={myDayPerson}
+              onPersonChange={setMyDayPersonId}
+              onToggleDone={toggleDone}
+            />
+          )}
+          {mobileTab === 'week' && (
+            <MobileWeek
+              state={state}
+              weekStart={weekStart}
+              onPrevWeek={() => setAnchor((d) => addDays(d, -7))}
+              onNextWeek={() => setAnchor((d) => addDays(d, 7))}
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+              onAssign={setAssignTarget}
+              onOpenChore={openChore}
+              onAddChore={() => openChore('new')}
+            />
+          )}
+          {mobileTab === 'chores' && choresPage}
+          {mobileTab === 'people' && peoplePage}
+          {mobileTab === 'settings' && settingsPage(true)}
+        </Shell>
       ) : (
-        <div className="no-print">
-          <Nav
-            page={page}
-            onNavigate={setPage}
-            weekStart={weekStart}
-            onPrevWeek={() => setAnchor((d) => addDays(d, -7))}
-            onThisWeek={() => setAnchor(new Date())}
-            onNextWeek={() => setAnchor((d) => addDays(d, 7))}
-            showPrint={state.chores.length > 0}
-          />
-          <main>
-            {page === 'week' && (
+        <Shell
+          items={PAGE_ITEMS}
+          current={page === 'print' ? 'week' : page}
+          onNavigate={setPage}
+          accountKey="settings"
+          me={me}
+        >
+          {banner}
+          {page === 'week' && (
+            <>
+              <PageHeader
+                title={weekLabel(weekStart)}
+                description="Who does what, day by day."
+                actions={
+                  <>
+                    {weekNav}
+                    {state.chores.length > 0 && (
+                      <button className="btn btn-primary" onClick={() => setPage('print')}>
+                        <Printer size={16} /> Print roster
+                      </button>
+                    )}
+                  </>
+                }
+              />
               <Dashboard
                 state={state}
                 weekStart={weekStart}
@@ -356,25 +390,27 @@ export default function App() {
                   setFocusCalendar(true)
                 }}
               />
-            )}
-            {page === 'chores' && choresPage}
-            {page === 'people' && peoplePage}
-            {page === 'settings' && settingsPage(false)}
-            {page === 'print' && (
-              <PrintPanel
-                layout={printLayout}
-                onLayoutChange={setPrintLayout}
-                options={printOptions}
-                onOptionsChange={setPrintOptions}
-                onPrint={doPrint}
-                onBack={() => setPage('week')}
-                preview={
-                  <PrintRoster state={state} weekStart={weekStart} layout={printLayout} options={printOptions} />
-                }
-              />
-            )}
-          </main>
-        </div>
+            </>
+          )}
+          {page === 'chores' && choresPage}
+          {page === 'people' && peoplePage}
+          {page === 'settings' && settingsPage(false)}
+          {page === 'print' && (
+            <PrintPanel
+              weekLabel={weekLabel(weekStart)}
+              weekNav={weekNav}
+              layout={printLayout}
+              onLayoutChange={setPrintLayout}
+              options={printOptions}
+              onOptionsChange={setPrintOptions}
+              onPrint={doPrint}
+              onBack={() => setPage('week')}
+              preview={
+                <PrintRoster state={state} weekStart={weekStart} layout={printLayout} options={printOptions} />
+              }
+            />
+          )}
+        </Shell>
       )}
 
       {assignTarget && (

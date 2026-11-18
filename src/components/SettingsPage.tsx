@@ -4,6 +4,7 @@ import type { AppState, TimeOfDay } from '../types'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
 import type { InviteForMe, Me } from '../sync/protocol'
 import { HouseholdDetails } from './Household'
+import { PageHeader } from './PageHeader'
 
 /** Ends the Cloudflare Access session. */
 export const SIGN_OUT_URL = '/cdn-cgi/access/logout'
@@ -58,7 +59,7 @@ function AccountCard({ me, deviceCount }: { me: Me | null; deviceCount: number |
           : 'Household details load when you are online.'}
       </p>
       <div className="share-card-actions">
-        <a className="btn btn-secondary" href={SIGN_OUT_URL}>Sign out</a>
+        <a className="btn" href={SIGN_OUT_URL}>Sign out</a>
       </div>
     </div>
   )
@@ -114,7 +115,7 @@ function CalendarCard(props: {
       </div>
 
       <div className="data-row">
-        <button className="btn btn-secondary" onClick={() => props.onExportIcs(who, tasks)}>Download .ics</button>
+        <button className="btn" onClick={() => props.onExportIcs(who, tasks)}>Download .ics</button>
         <span className="text-muted footnote">
           {tasks
             ? 'Next 8 weeks as tasks. Import into Apple Reminders or Microsoft To Do.'
@@ -142,7 +143,7 @@ function CalendarCard(props: {
               onFocus={(e) => e.target.select()}
               aria-label="Calendar feed URL"
             />
-            <button className="btn btn-secondary" onClick={() => void copyFeed()}>
+            <button className="btn" onClick={() => void copyFeed()}>
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
@@ -177,7 +178,7 @@ function SlotLabelEditor({ state, onRenameSlot, onDone }: {
         </label>
       ))}
       <div>
-        <button className="btn btn-secondary" onClick={onDone}>Done</button>
+        <button className="btn" onClick={onDone}>Done</button>
       </div>
     </div>
   )
@@ -200,7 +201,7 @@ export function SettingsPage(props: Props) {
   const { state, mobile } = props
   const [renaming, setRenaming] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const calRef = useRef<HTMLDivElement>(null)
+  const calRef = useRef<HTMLElement>(null)
   const [flash, setFlash] = useState(false)
 
   // Arriving from the dashboard shortcut: bring the calendar section into view
@@ -241,97 +242,98 @@ export function SettingsPage(props: Props) {
 
   return (
     <div className="settings-page">
-      <h2>Settings</h2>
-      <p className="text-muted settings-tagline">Everything that isn't a chore or a person.</p>
+      <PageHeader title="Settings" description="Everything that isn't a chore or a person." />
 
-      <hr className="hr settings-hr" />
-      <h6>General</h6>
-      <div className="settings-rows">
-        <div className="settings-label">Week starts on</div>
-        <div>
-          <WeekStartSeg value={state.weekStartsOn} onChange={props.onWeekStartsOn} />
-          <p className="text-muted footnote">Sets the first column of the week grid and the printed roster.</p>
+      <section className="card">
+        <h2 className="section-title">General</h2>
+        <div className="settings-rows">
+          <div className="settings-label">Week starts on</div>
+          <div>
+            <WeekStartSeg value={state.weekStartsOn} onChange={props.onWeekStartsOn} />
+            <p className="text-muted footnote">Sets the first column of the week grid and the printed roster.</p>
+          </div>
+
+          <div className="settings-label">Time-of-day labels</div>
+          <div>
+            {renaming ? (
+              <SlotLabelEditor state={state} onRenameSlot={props.onRenameSlot} onDone={() => setRenaming(false)} />
+            ) : (
+              <div className="slot-tags">
+                {TIME_SLOTS.map((s) => (
+                  <span key={s.key} className="tag">{slotLabel(state.timeOfDayLabels, s.key)}</span>
+                ))}
+                <button className="btn btn-ghost slot-rename" onClick={() => setRenaming(true)}>Rename</button>
+              </div>
+            )}
+            <p className="text-muted footnote">Used as the row headings on the dashboard.</p>
+          </div>
         </div>
+      </section>
 
-        <div className="settings-label">Time-of-day labels</div>
-        <div>
-          {renaming ? (
-            <SlotLabelEditor state={state} onRenameSlot={props.onRenameSlot} onDone={() => setRenaming(false)} />
-          ) : (
-            <div className="slot-tags">
-              {TIME_SLOTS.map((s) => (
-                <span key={s.key} className="tag tag-outline">{slotLabel(state.timeOfDayLabels, s.key)}</span>
-              ))}
-              <button className="btn btn-ghost slot-rename" onClick={() => setRenaming(true)}>Rename</button>
-            </div>
+      <section className="card">
+        <h2 className="section-title">Household</h2>
+        <div className="settings-rows">
+          <div className="settings-label">Sync</div>
+          <div>
+            <AccountCard me={props.me} deviceCount={props.deviceCount} />
+          </div>
+          {props.me && (
+            <HouseholdDetails
+              me={props.me}
+              stacked={false}
+              onMeChange={props.onMeChange}
+              onJoinHousehold={props.onJoinHousehold}
+              onLeaveHousehold={props.onLeaveHousehold}
+            />
           )}
-          <p className="text-muted footnote">Used as the row headings on the dashboard.</p>
         </div>
-      </div>
+      </section>
 
-      <hr className="hr settings-hr" />
-      <h6>Household</h6>
-      <div className="settings-rows">
-        <div className="settings-label">Sync</div>
-        <div>
-          <AccountCard me={props.me} deviceCount={props.deviceCount} />
-        </div>
-        {props.me && (
-          <HouseholdDetails
-            me={props.me}
-            stacked={false}
-            onMeChange={props.onMeChange}
-            onJoinHousehold={props.onJoinHousehold}
-            onLeaveHousehold={props.onLeaveHousehold}
-          />
-        )}
-      </div>
-
-      <div ref={calRef} className={`settings-section${flash ? ' settings-flash' : ''}`}>
-      <hr className="hr settings-hr" />
-      <h6>Calendar &amp; tasks</h6>
-      <div className="settings-rows">
-        <div className="settings-label">Export chores</div>
-        <div>
-          <CalendarCard
-            state={state}
-            calError={props.calError}
-            onExportIcs={props.onExportIcs}
-            onEnableCalendar={props.onEnableCalendar}
-            feedUrlFor={props.feedUrlFor}
-          />
-          <p className="text-muted footnote">
-            Put chores in your calendar or reminders app. Download a file, or subscribe to a link
-            that stays current.
-          </p>
-        </div>
-      </div>
-      </div>
-
-      <hr className="hr settings-hr" />
-      <h6>Data</h6>
-      <div className="settings-rows">
-        <div className="settings-label">Backup</div>
-        <div>
-          <div className="data-row">
-            <button className="btn btn-secondary" onClick={props.onExport}>Export JSON</button>
-            <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>Import JSON</button>
+      <section ref={calRef} className={`card settings-section${flash ? ' settings-flash' : ''}`}>
+        <h2 className="section-title">Calendar &amp; tasks</h2>
+        <div className="settings-rows">
+          <div className="settings-label">Export chores</div>
+          <div>
+            <CalendarCard
+              state={state}
+              calError={props.calError}
+              onExportIcs={props.onExportIcs}
+              onEnableCalendar={props.onEnableCalendar}
+              feedUrlFor={props.feedUrlFor}
+            />
+            <p className="text-muted footnote">
+              Put chores in your calendar or reminders app. Download a file, or subscribe to a link
+              that stays current.
+            </p>
           </div>
-          {props.importError && <p className="editor-error">{props.importError}</p>}
-          <p className="text-muted footnote">
-            The roster is stored online for the household, with a copy in this browser. Export to
-            keep your own backup.
-          </p>
         </div>
+      </section>
 
-        <div className="settings-label settings-label-danger">Start over</div>
-        <div>
-          <div className="data-row">
-            <button className="btn btn-secondary btn-danger-outline" onClick={props.onReset}>Reset to example</button>
+      <section className="card">
+        <h2 className="section-title">Data</h2>
+        <div className="settings-rows">
+          <div className="settings-label">Backup</div>
+          <div>
+            <div className="data-row">
+              <button className="btn" onClick={props.onExport}>Export JSON</button>
+              <button className="btn" onClick={() => fileRef.current?.click()}>Import JSON</button>
+            </div>
+            {props.importError && <p className="editor-error">{props.importError}</p>}
+            <p className="text-muted footnote">
+              The roster is stored online for the household, with a copy in this browser. Export to
+              keep your own backup.
+            </p>
           </div>
-          <p className="text-muted footnote">Replaces every person and chore with the sample household, for everyone. Asks first.</p>
+
+          <div className="settings-label settings-label-danger">Start over</div>
+          <div>
+            <div className="data-row">
+              <button className="btn btn-danger" onClick={props.onReset}>Reset to example</button>
+            </div>
+            <p className="text-muted footnote">Replaces every person and chore with the sample household, for everyone. Asks first.</p>
+          </div>
         </div>
-      </div>
+      </section>
       {fileInput}
     </div>
   )
@@ -351,99 +353,107 @@ function MobileSettings(props: Props & {
 
   return (
     <div className="mset">
-      <header className="mset-header"><h2>Settings</h2></header>
+      <PageHeader title="Settings" />
 
-      <h6 className="mset-section">General</h6>
-      <button className="mset-row" onClick={() => toggle('week')} aria-expanded={open === 'week'}>
-        <span className="mset-row-label">Week starts on</span>
-        <span className="text-muted">{state.weekStartsOn === 1 ? 'Monday' : 'Sunday'}</span>
-        <ChevronRight size={16} className={`mset-chevron${open === 'week' ? ' open' : ''}`} />
-      </button>
-      {open === 'week' && (
-        <div className="mset-detail">
-          <WeekStartSeg value={state.weekStartsOn} onChange={props.onWeekStartsOn} />
-        </div>
-      )}
-
-      <button className="mset-row" onClick={() => toggle('labels')} aria-expanded={open === 'labels'}>
-        <span className="mset-row-label">Time-of-day labels</span>
-        <ChevronRight size={16} className={`mset-chevron${open === 'labels' ? ' open' : ''}`} />
-      </button>
-      {open === 'labels' && (
-        <div className="mset-detail">
-          <SlotLabelEditor state={state} onRenameSlot={props.onRenameSlot} onDone={() => setOpen(null)} />
-        </div>
-      )}
-
-      <h6 className="mset-section">Household</h6>
-      <button className="mset-row mset-row-tall" onClick={() => toggle('sync')} aria-expanded={open === 'sync'}>
-        <span className="mset-row-main">
-          <span className="mset-row-top">
-            <span className="share-dot" />
-            <span className="mset-row-label">
-              {props.deviceCount === null ? 'Connecting…' : syncStatus(props.deviceCount)}
-            </span>
-          </span>
-          <span className="text-muted mset-row-sub">{me?.email ?? 'Signed in'}</span>
-        </span>
-        <ChevronRight size={16} className={`mset-chevron${open === 'sync' ? ' open' : ''}`} />
-      </button>
-      {open === 'sync' && (
-        <div className="mset-detail">
-          <AccountCard me={me} deviceCount={props.deviceCount} />
-        </div>
-      )}
-      {me && (
-        <button className="mset-row mset-row-tall" onClick={() => toggle('household')} aria-expanded={open === 'household'}>
-          <span className="mset-row-main">
-            <span className="mset-row-label">{me.household.name}</span>
-            <span className="text-muted mset-row-sub">
-              {me.household.members.length === 1 ? '1 member' : `${me.household.members.length} members`}
-            </span>
-          </span>
-          <ChevronRight size={16} className={`mset-chevron${open === 'household' ? ' open' : ''}`} />
+      <h2 className="mset-section">General</h2>
+      <div className="mset-group">
+        <button className="mset-row" onClick={() => toggle('week')} aria-expanded={open === 'week'}>
+          <span className="mset-row-label">Week starts on</span>
+          <span className="text-muted">{state.weekStartsOn === 1 ? 'Monday' : 'Sunday'}</span>
+          <ChevronRight size={16} className={`mset-chevron${open === 'week' ? ' open' : ''}`} />
         </button>
-      )}
-      {me && open === 'household' && (
-        <div className="mset-detail">
-          <HouseholdDetails
-            me={me}
-            stacked
-            onMeChange={props.onMeChange}
-            onJoinHousehold={props.onJoinHousehold}
-            onLeaveHousehold={props.onLeaveHousehold}
-          />
-        </div>
-      )}
+        {open === 'week' && (
+          <div className="mset-detail">
+            <WeekStartSeg value={state.weekStartsOn} onChange={props.onWeekStartsOn} />
+          </div>
+        )}
 
-      <h6 className="mset-section">Calendar &amp; tasks</h6>
-      <button className="mset-row" onClick={() => toggle('cal')} aria-expanded={open === 'cal'}>
-        <span className="mset-row-label">Export chores</span>
-        <ChevronRight size={16} className={`mset-chevron${open === 'cal' ? ' open' : ''}`} />
-      </button>
-      {open === 'cal' && (
-        <div className="mset-detail">
-          <CalendarCard
-            state={state}
-            calError={props.calError}
-            onExportIcs={props.onExportIcs}
-            onEnableCalendar={props.onEnableCalendar}
-            feedUrlFor={props.feedUrlFor}
-          />
-        </div>
-      )}
+        <button className="mset-row" onClick={() => toggle('labels')} aria-expanded={open === 'labels'}>
+          <span className="mset-row-label">Time-of-day labels</span>
+          <ChevronRight size={16} className={`mset-chevron${open === 'labels' ? ' open' : ''}`} />
+        </button>
+        {open === 'labels' && (
+          <div className="mset-detail">
+            <SlotLabelEditor state={state} onRenameSlot={props.onRenameSlot} onDone={() => setOpen(null)} />
+          </div>
+        )}
+      </div>
 
-      <h6 className="mset-section">Data</h6>
-      <button className="mset-row" onClick={props.onExport}>
-        <span className="mset-row-label">Export a backup</span>
-      </button>
-      <button className="mset-row" onClick={() => props.fileRef.current?.click()}>
-        <span className="mset-row-label">Import a backup</span>
-      </button>
-      {props.importError && <p className="editor-error mset-error">{props.importError}</p>}
-      <button className="mset-row mset-row-danger" onClick={props.onReset}>
-        <span className="mset-row-label">Reset to example</span>
-      </button>
+      <h2 className="mset-section">Household</h2>
+      <div className="mset-group">
+        <button className="mset-row mset-row-tall" onClick={() => toggle('sync')} aria-expanded={open === 'sync'}>
+          <span className="mset-row-main">
+            <span className="mset-row-top">
+              <span className="share-dot" />
+              <span className="mset-row-label">
+                {props.deviceCount === null ? 'Connecting…' : syncStatus(props.deviceCount)}
+              </span>
+            </span>
+            <span className="text-muted mset-row-sub">{me?.email ?? 'Signed in'}</span>
+          </span>
+          <ChevronRight size={16} className={`mset-chevron${open === 'sync' ? ' open' : ''}`} />
+        </button>
+        {open === 'sync' && (
+          <div className="mset-detail">
+            <AccountCard me={me} deviceCount={props.deviceCount} />
+          </div>
+        )}
+        {me && (
+          <button className="mset-row mset-row-tall" onClick={() => toggle('household')} aria-expanded={open === 'household'}>
+            <span className="mset-row-main">
+              <span className="mset-row-label">{me.household.name}</span>
+              <span className="text-muted mset-row-sub">
+                {me.household.members.length === 1 ? '1 member' : `${me.household.members.length} members`}
+              </span>
+            </span>
+            <ChevronRight size={16} className={`mset-chevron${open === 'household' ? ' open' : ''}`} />
+          </button>
+        )}
+        {me && open === 'household' && (
+          <div className="mset-detail">
+            <HouseholdDetails
+              me={me}
+              stacked
+              onMeChange={props.onMeChange}
+              onJoinHousehold={props.onJoinHousehold}
+              onLeaveHousehold={props.onLeaveHousehold}
+            />
+          </div>
+        )}
+      </div>
+
+      <h2 className="mset-section">Calendar &amp; tasks</h2>
+      <div className="mset-group">
+        <button className="mset-row" onClick={() => toggle('cal')} aria-expanded={open === 'cal'}>
+          <span className="mset-row-label">Export chores</span>
+          <ChevronRight size={16} className={`mset-chevron${open === 'cal' ? ' open' : ''}`} />
+        </button>
+        {open === 'cal' && (
+          <div className="mset-detail">
+            <CalendarCard
+              state={state}
+              calError={props.calError}
+              onExportIcs={props.onExportIcs}
+              onEnableCalendar={props.onEnableCalendar}
+              feedUrlFor={props.feedUrlFor}
+            />
+          </div>
+        )}
+      </div>
+
+      <h2 className="mset-section">Data</h2>
+      <div className="mset-group">
+        <button className="mset-row" onClick={props.onExport}>
+          <span className="mset-row-label">Export a backup</span>
+        </button>
+        <button className="mset-row" onClick={() => props.fileRef.current?.click()}>
+          <span className="mset-row-label">Import a backup</span>
+        </button>
+        {props.importError && <p className="editor-error mset-error">{props.importError}</p>}
+        <button className="mset-row mset-row-danger" onClick={props.onReset}>
+          <span className="mset-row-label">Reset to example</span>
+        </button>
+      </div>
       {props.fileInput}
     </div>
   )

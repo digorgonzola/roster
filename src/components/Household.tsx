@@ -146,7 +146,7 @@ export function HouseholdDetails({ me, stacked, onMeChange, onJoinHousehold, onL
           autoFocus
         />
       </label>
-      <button type="submit" className="btn btn-secondary" disabled={action.busy || nameDraft.trim() === ''}>Save</button>
+      <button type="submit" className="btn" disabled={action.busy || nameDraft.trim() === ''}>Save</button>
       <button type="button" className="btn btn-ghost" onClick={() => setEditingName(false)}>Cancel</button>
     </form>
   ) : (
@@ -223,7 +223,7 @@ export function HouseholdDetails({ me, stacked, onMeChange, onJoinHousehold, onL
                 required
               />
             </label>
-            <button type="submit" className="btn btn-secondary" disabled={action.busy}>Send invite</button>
+            <button type="submit" className="btn" disabled={action.busy}>Send invite</button>
           </form>
           <ActionError message={action.errorFor('invite')} />
           <p className="text-muted footnote">
@@ -243,7 +243,7 @@ export function HouseholdDetails({ me, stacked, onMeChange, onJoinHousehold, onL
             <li key={invite.id}>
               <span>{invite.invitedBy} invited you to join <strong>{invite.householdName}</strong>.</span>
               <button
-                className="btn btn-secondary"
+                className="btn"
                 disabled={action.busy}
                 aria-label={`Join ${invite.householdName}`}
                 onClick={() => void action.run(`join:${invite.id}`, () => onJoinHousehold(invite), JOIN_ERRORS)}
@@ -266,7 +266,7 @@ export function HouseholdDetails({ me, stacked, onMeChange, onJoinHousehold, onL
         <>
           <div className="data-row">
             <button
-              className="btn btn-secondary btn-danger-outline"
+              className="btn btn-danger"
               disabled={action.busy}
               onClick={() => void action.run('leave', onLeaveHousehold, LEAVE_ERRORS)}
             >

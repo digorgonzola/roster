@@ -31,10 +31,10 @@ export function MobileWeek({ state, weekStart, onPrevWeek, onNextWeek, selectedD
       <header className="mweek-header">
         <h2>This week</h2>
         <span className="mweek-nav">
-          <button className="btn btn-secondary btn-icon" onClick={onPrevWeek} aria-label="Previous week">
+          <button className="btn btn-icon" onClick={onPrevWeek} aria-label="Previous week">
             <ChevronLeft size={16} />
           </button>
-          <button className="btn btn-secondary btn-icon" onClick={onNextWeek} aria-label="Next week">
+          <button className="btn btn-icon" onClick={onNextWeek} aria-label="Next week">
             <ChevronRight size={16} />
           </button>
         </span>

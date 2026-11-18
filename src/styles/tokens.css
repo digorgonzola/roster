@@ -1,0 +1,183 @@
+/*
+ * Design tokens: "Quiet ledger", shared with the bill-tracker app so the two
+ * household apps look like one family. Values match bill-tracker's
+ * src/styles/tokens.css; only the status set differs, because roster has no
+ * bill states.
+ *
+ * Warm paper-stone neutrals, one harbour-blue accent for anything interactive,
+ * amber for work that needs a person, red for destructive actions, green for
+ * done. Status colours always travel with a word or icon, never colour alone.
+ *
+ * Typeface: the platform system stack, not a web font (no font request, no
+ * layout shift, tabular figures built in).
+ */
+
+:root {
+  color-scheme: light;
+
+  --neutral-0: #ffffff;
+  --neutral-25: #f7f6f3;
+  --neutral-50: #f0eeea;
+  --neutral-100: #efede8;
+  --neutral-200: #e3dfd8;
+  --neutral-300: #d6d1c8;
+  --neutral-400: #a8a399;
+  --neutral-500: #8c877d;
+  --neutral-600: #6b665d;
+  --neutral-700: #57534b;
+  --neutral-800: #4d4942;
+  --neutral-900: #1c1b18;
+
+  --surface: var(--neutral-25);
+  --surface-raised: var(--neutral-0);
+  --surface-sunken: var(--neutral-100);
+  --surface-hover: var(--neutral-50);
+  /* True white, for surfaces that must stay paper-white (print preview). */
+  --paper: #ffffff;
+
+  /* Hairlines stay quiet; form controls get 3:1 (WCAG 1.4.11). */
+  --border: var(--neutral-200);
+  --border-strong: var(--neutral-500);
+
+  --text-primary: var(--neutral-900);
+  --text-secondary: var(--neutral-700);
+  --text-muted: var(--neutral-600);
+  --text-on-accent: #ffffff;
+
+  /* Harbour blue. Interactive meaning only. */
+  --accent: #1b5e9b;
+  --accent-hover: #164c7f;
+  --accent-subtle: #e6eef7;
+  --focus-ring: var(--accent);
+
+  /* fg = text/icon, bg = tint, edge = border/rule. */
+  --warning: #8a4b00;
+  --warning-bg: #fcf1e0;
+  --warning-edge: #d98e1f;
+
+  --danger: #b3261e;
+  --danger-bg: #fceeec;
+  --danger-edge: #d9483f;
+
+  --success: #1e6b3f;
+  --success-bg: #e8f4ec;
+  --success-edge: #3c9a63;
+
+  /* Load bars and progress: neutral ink, not a hue. */
+  --chart-mark: var(--neutral-700);
+  --chart-track: var(--surface-sunken);
+
+  --shadow-float: 0 8px 24px rgb(28 27 24 / 0.12), 0 2px 4px rgb(28 27 24 / 0.08);
+
+  --radius-control: 6px;
+  --radius-container: 10px;
+
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --space-96: 96px;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --font-size-12: 12px;
+  --font-size-14: 14px;
+  --font-size-16: 16px;
+  --font-size-20: 20px;
+  --font-size-24: 24px;
+  --font-size-32: 32px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.4;
+  --line-height-body: 1.5;
+
+  --duration-fast: 150ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --target-touch: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --surface: #151412;
+    --surface-raised: #1e1d1a;
+    --surface-sunken: #100f0e;
+    --surface-hover: #29271f;
+
+    --border: #35322c;
+    --border-strong: #77726a;
+
+    --text-primary: #f1efea;
+    --text-secondary: #bdb8ae;
+    --text-muted: #9c978c;
+    --text-on-accent: #0c1826;
+
+    --accent: #7db2ea;
+    --accent-hover: #a2c8f1;
+    --accent-subtle: #1c2b3b;
+
+    --warning: #f2be6b;
+    --warning-bg: #33260f;
+    --warning-edge: #c98a26;
+
+    --danger: #ff9d93;
+    --danger-bg: #3a1b18;
+    --danger-edge: #e0574d;
+
+    --success: #7fd3a2;
+    --success-bg: #16301f;
+    --success-edge: #3c9a63;
+
+    --chart-mark: #bdb8ae;
+
+    --shadow-float: 0 8px 24px rgb(0 0 0 / 0.5), 0 2px 4px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* Explicit dark override; mirrors the media query above. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface: #151412;
+  --surface-raised: #1e1d1a;
+  --surface-sunken: #100f0e;
+  --surface-hover: #29271f;
+
+  --border: #35322c;
+  --border-strong: #77726a;
+
+  --text-primary: #f1efea;
+  --text-secondary: #bdb8ae;
+  --text-muted: #9c978c;
+  --text-on-accent: #0c1826;
+
+  --accent: #7db2ea;
+  --accent-hover: #a2c8f1;
+  --accent-subtle: #1c2b3b;
+
+  --warning: #f2be6b;
+  --warning-bg: #33260f;
+  --warning-edge: #c98a26;
+
+  --danger: #ff9d93;
+  --danger-bg: #3a1b18;
+  --danger-edge: #e0574d;
+
+  --success: #7fd3a2;
+  --success-bg: #16301f;
+  --success-edge: #3c9a63;
+
+  --chart-mark: #bdb8ae;
+
+  --shadow-float: 0 8px 24px rgb(0 0 0 / 0.5), 0 2px 4px rgb(0 0 0 / 0.4);
+}
