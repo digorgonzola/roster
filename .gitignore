@@ -11,3 +11,6 @@ dist
 
 # wrangler local dev state
 .wrangler/
+
+# wrangler local secrets and vars (see .dev.vars.example)
+.dev.vars

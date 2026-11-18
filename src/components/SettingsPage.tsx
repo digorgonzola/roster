@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { renderSVG } from 'uqr'
 import type { AppState, TimeOfDay } from '../types'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
+import type { Me } from '../sync/protocol'
+
+/** Ends the Cloudflare Access session. */
+export const SIGN_OUT_URL = '/cdn-cgi/access/logout'
 
 interface Props {
   state: AppState
@@ -13,21 +16,15 @@ interface Props {
   onImport: (file: File) => void
   onReset: () => void
   importError: string
-  /** Null while this roster is not shared. */
-  shareLink: string | null
-  shareBusy: boolean
-  shareError: string
-  /** Authed sockets in the room; null while the push channel is down. */
+  /** The signed-in member; null until /api/me answers (or while offline). */
+  me: Me | null
+  /** Open sockets in the room; null while the push channel is down. */
   deviceCount: number | null
-  onShare: () => void
-  onStopShare: () => void
   /** Download an .ics: calendar events (tasks=false) or reminders (tasks=true). */
   onExportIcs: (personId: string | undefined, tasks: boolean) => void
-  /** True once this device has registered the live feed token with the room. */
-  calFeedEnabled: boolean
   calError: string
   onEnableCalendar: () => void
-  /** The subscribable feed URL, or null until sharing + token are ready. */
+  /** The subscribable feed URL, or null until a member enables the feed. */
   feedUrlFor: (personId: string | undefined, tasks: boolean) => string | null
   /** True when arriving from the dashboard's "Add to calendar" shortcut. */
   focusCalendar: boolean
@@ -40,63 +37,21 @@ function syncStatus(deviceCount: number | null): string {
     : 'Syncing'
 }
 
-function QrCode({ text }: { text: string }) {
-  const svg = renderSVG(text, { border: 2 })
-  return (
-    <img
-      className="share-qr"
-      alt="QR code for the share link"
-      src={`data:image/svg+xml,${encodeURIComponent(svg)}`}
-    />
-  )
-}
-
-/** Link + copy + QR + stop, shown while the roster is shared (design 3b). */
-function ShareCard({ shareLink, deviceCount, onStopShare }: {
-  shareLink: string
-  deviceCount: number | null
-  onStopShare: () => void
-}) {
-  const [copied, setCopied] = useState(false)
-  const [showQr, setShowQr] = useState(false)
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareLink)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // clipboard blocked: the link stays selectable in the input
-    }
-  }
-
+/** Who is signed in, live sync status, and sign out. */
+function AccountCard({ me, deviceCount }: { me: Me | null; deviceCount: number | null }) {
   return (
     <div className="share-card">
       <div className="share-status">
         <span className="share-dot" />
-        <strong>{syncStatus(deviceCount)}</strong>
-      </div>
-      <div className="data-row">
-        <input
-          className="input share-link"
-          readOnly
-          value={shareLink}
-          onFocus={(e) => e.target.select()}
-          aria-label="Share link"
-        />
-        <button className="btn btn-secondary" onClick={() => void copyLink()}>
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+        <strong>{deviceCount === null ? 'Connecting…' : syncStatus(deviceCount)}</strong>
       </div>
       <p className="text-muted footnote share-card-note">
-        Anyone with this link can view and edit. Open it on another device to sync.
+        {me ? <>Signed in as <strong>{me.email}</strong>.</> : 'Signed in.'} Everyone in the household
+        sees the same roster.
+        {me && me.household.length > 1 && <> Members: {me.household.join(', ')}.</>}
       </p>
-      {showQr && <QrCode text={shareLink} />}
       <div className="share-card-actions">
-        <button className="btn btn-secondary" onClick={() => setShowQr((v) => !v)}>
-          {showQr ? 'Hide QR code' : 'Show QR code'}
-        </button>
-        <button className="btn btn-ghost share-stop" onClick={onStopShare}>Stop syncing</button>
+        <a className="btn btn-secondary" href={SIGN_OUT_URL}>Sign out</a>
       </div>
     </div>
   )
@@ -105,14 +60,12 @@ function ShareCard({ shareLink, deviceCount, onStopShare }: {
 /** Calendar & task export: pick a person and kind, then download or subscribe. */
 function CalendarCard(props: {
   state: AppState
-  shared: boolean
-  calFeedEnabled: boolean
   calError: string
   onExportIcs: (personId: string | undefined, tasks: boolean) => void
   onEnableCalendar: () => void
   feedUrlFor: (personId: string | undefined, tasks: boolean) => string | null
 }) {
-  const { state, shared } = props
+  const { state } = props
   const [personId, setPersonId] = useState('') // '' = everyone
   const [tasks, setTasks] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -167,11 +120,7 @@ function CalendarCard(props: {
           Task apps can't subscribe to a live feed. Use Download, or switch to Calendar for an
           auto-updating link.
         </p>
-      ) : !shared ? (
-        <p className="text-muted footnote">
-          Turn on Family sync above to get a link that keeps a calendar up to date on its own.
-        </p>
-      ) : !props.calFeedEnabled || !feedUrl ? (
+      ) : !feedUrl ? (
         <div className="data-row">
           <button className="btn btn-primary" onClick={props.onEnableCalendar}>Enable live feed</button>
           <span className="text-muted footnote">Creates an auto-updating subscribe link.</span>
@@ -314,26 +263,11 @@ export function SettingsPage(props: Props) {
       </div>
 
       <hr className="hr settings-hr" />
-      <h6>Sharing</h6>
+      <h6>Account</h6>
       <div className="settings-rows">
-        <div className="settings-label">Family sync</div>
+        <div className="settings-label">Household sync</div>
         <div>
-          {props.shareLink ? (
-            <ShareCard shareLink={props.shareLink} deviceCount={props.deviceCount} onStopShare={props.onStopShare} />
-          ) : (
-            <>
-              <div className="data-row">
-                <button className="btn btn-primary" onClick={props.onShare} disabled={props.shareBusy}>
-                  {props.shareBusy ? 'Starting…' : 'Share roster'}
-                </button>
-                <span className="text-muted footnote share-none">Not shared yet</span>
-              </div>
-              <p className="text-muted footnote">
-                Creates a private link that keeps this roster in sync between family devices.
-              </p>
-            </>
-          )}
-          {props.shareError && <p className="editor-error">{props.shareError}</p>}
+          <AccountCard me={props.me} deviceCount={props.deviceCount} />
         </div>
       </div>
 
@@ -345,8 +279,6 @@ export function SettingsPage(props: Props) {
         <div>
           <CalendarCard
             state={state}
-            shared={props.shareLink !== null}
-            calFeedEnabled={props.calFeedEnabled}
             calError={props.calError}
             onExportIcs={props.onExportIcs}
             onEnableCalendar={props.onEnableCalendar}
@@ -371,7 +303,8 @@ export function SettingsPage(props: Props) {
           </div>
           {props.importError && <p className="editor-error">{props.importError}</p>}
           <p className="text-muted footnote">
-            Data is stored in this browser. Export to back it up or move it to another device.
+            The roster is stored online for the household, with a copy in this browser. Export to
+            keep your own backup.
           </p>
         </div>
 
@@ -380,7 +313,7 @@ export function SettingsPage(props: Props) {
           <div className="data-row">
             <button className="btn btn-secondary btn-danger-outline" onClick={props.onReset}>Reset to example</button>
           </div>
-          <p className="text-muted footnote">Replaces every person and chore with the sample household. Asks first.</p>
+          <p className="text-muted footnote">Replaces every person and chore with the sample household, for everyone. Asks first.</p>
         </div>
       </div>
       {fileInput}
@@ -423,32 +356,24 @@ function MobileSettings(props: Props & {
         </div>
       )}
 
-      <h6 className="mset-section">Sharing</h6>
-      {props.shareLink ? (
-        <>
-          <button className="mset-row mset-row-tall" onClick={() => toggle('sync')} aria-expanded={open === 'sync'}>
-            <span className="mset-row-main">
-              <span className="mset-row-top">
-                <span className="share-dot" />
-                <span className="mset-row-label">{syncStatus(props.deviceCount)}</span>
-              </span>
-              <span className="text-muted mset-row-sub">Tap for link and QR</span>
+      <h6 className="mset-section">Account</h6>
+      <button className="mset-row mset-row-tall" onClick={() => toggle('sync')} aria-expanded={open === 'sync'}>
+        <span className="mset-row-main">
+          <span className="mset-row-top">
+            <span className="share-dot" />
+            <span className="mset-row-label">
+              {props.deviceCount === null ? 'Connecting…' : syncStatus(props.deviceCount)}
             </span>
-            <ChevronRight size={16} className={`mset-chevron${open === 'sync' ? ' open' : ''}`} />
-          </button>
-          {open === 'sync' && (
-            <div className="mset-detail">
-              <ShareCard shareLink={props.shareLink} deviceCount={props.deviceCount} onStopShare={props.onStopShare} />
-            </div>
-          )}
-        </>
-      ) : (
-        <button className="mset-row" onClick={props.onShare} disabled={props.shareBusy}>
-          <span className="mset-row-label">{props.shareBusy ? 'Starting…' : 'Share roster'}</span>
-          <span className="text-muted">Not shared yet</span>
-        </button>
+          </span>
+          <span className="text-muted mset-row-sub">{props.me?.email ?? 'Signed in'}</span>
+        </span>
+        <ChevronRight size={16} className={`mset-chevron${open === 'sync' ? ' open' : ''}`} />
+      </button>
+      {open === 'sync' && (
+        <div className="mset-detail">
+          <AccountCard me={props.me} deviceCount={props.deviceCount} />
+        </div>
       )}
-      {props.shareError && <p className="editor-error mset-error">{props.shareError}</p>}
 
       <h6 className="mset-section">Calendar &amp; tasks</h6>
       <button className="mset-row" onClick={() => toggle('cal')} aria-expanded={open === 'cal'}>
@@ -459,8 +384,6 @@ function MobileSettings(props: Props & {
         <div className="mset-detail">
           <CalendarCard
             state={state}
-            shared={props.shareLink !== null}
-            calFeedEnabled={props.calFeedEnabled}
             calError={props.calError}
             onExportIcs={props.onExportIcs}
             onEnableCalendar={props.onEnableCalendar}

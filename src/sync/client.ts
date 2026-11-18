@@ -2,11 +2,9 @@ import type { AppState } from '../types'
 import type { Op } from '../ops'
 import {
   CALENDAR_TOKEN_PARAM,
-  ROSTER_KEY_HEADER,
-  type CalendarEnableRequest,
+  type CalendarFeedResponse,
   type ClientMessage,
-  type CreateRoomResponse,
-  type InitRequest,
+  type Me,
   type OpRequest,
   type OpResponse,
   type ServerMessage,
@@ -14,15 +12,12 @@ import {
 } from './protocol'
 
 /**
- * Client side of roster sharing.
+ * Client side of the household roster.
  *
- * The share credential is a capability: the room id plus a random 128-bit
- * key. Both travel only in the URL *fragment* (`#/r/<roomId>/<key>`), which
- * browsers never send to servers, and after the first open they live in
- * localStorage. Requests carry the room id in the path and the key in the
- * `X-Roster-Key` header.
+ * Cloudflare Access signs each member in, and its cookie rides along on every
+ * same-origin request, so the client holds no credential of its own.
  *
- * Data flow while shared:
+ * Data flow:
  * - Local edits apply optimistically, join a persisted pending queue, and
  *   flush to the room over HTTP in order. The queue survives a reload, so
  *   offline edits replay when the connection returns.
@@ -31,16 +26,12 @@ import {
  * - While the socket is down, a slow poll (30s) keeps devices converging.
  */
 
-const SHARE_KEY = 'roster.share.v1'
 const PENDING_KEY = 'roster.pending.v1'
+/** Share-link credentials from before sign-in. Removed so no device keeps an unused secret. */
+const LEGACY_KEYS = ['roster.share.v1', 'roster.cal.v1']
 const FALLBACK_POLL_MS = 30_000
 const BACKOFF_MIN_MS = 1_000
 const BACKOFF_MAX_MS = 30_000
-
-export interface ShareConfig {
-  roomId: string
-  key: string
-}
 
 export interface SyncHandlers {
   /** A remote op to apply on top of current local state. */
@@ -57,93 +48,53 @@ export interface SyncHandlers {
   onPresence?: (devices: number | null) => void
 }
 
-export function loadShareConfig(): ShareConfig | null {
+export function clearLegacyShareConfig(): void {
   try {
-    const raw = localStorage.getItem(SHARE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as ShareConfig
-    if (typeof parsed.roomId === 'string' && typeof parsed.key === 'string') return parsed
+    for (const key of LEGACY_KEYS) localStorage.removeItem(key)
   } catch {
-    // corrupt config: treat as not sharing
+    // storage disabled: nothing stored to clear
   }
-  return null
 }
 
-function saveShareConfig(config: ShareConfig): void {
-  localStorage.setItem(SHARE_KEY, JSON.stringify(config))
+/** The signed-in household member. */
+export async function fetchMe(): Promise<Me> {
+  return (await (await expectOk(await fetch('/api/me'))).json()) as Me
 }
 
-export function clearShareConfig(): void {
-  localStorage.removeItem(SHARE_KEY)
-  localStorage.removeItem(PENDING_KEY)
-  localStorage.removeItem(CAL_ENABLED_KEY)
+/** The calendar feed token, or null until a member enables the feed. */
+export async function fetchCalendarToken(): Promise<string | null> {
+  const res = await expectOk(await fetch('/api/calendar'))
+  return ((await res.json()) as CalendarFeedResponse).token
 }
 
-export function shareLink(config: ShareConfig): string {
-  return `${location.origin}/#/r/${config.roomId}/${config.key}`
-}
-
-const CAL_ENABLED_KEY = 'roster.cal.v1'
-
-/**
- * The read-only feed token, derived from the room key so every device produces
- * the same feed URL without extra round-trips. It is a one-way hash of the key,
- * so it never exposes the key and cannot be replayed as a write credential.
- */
-export function deriveCalToken(key: string): Promise<string> {
-  return sha256Hex(`${key}:calendar`)
-}
-
-/** Whether this device has enabled the calendar feed (UI hint only). */
-export function calendarEnabled(): boolean {
-  return localStorage.getItem(CAL_ENABLED_KEY) === '1'
-}
-
-/** Register the feed token hash with the room, then remember it locally. */
-export async function enableCalendarFeed(config: ShareConfig): Promise<void> {
-  const token = await deriveCalToken(config.key)
-  const body: CalendarEnableRequest = { tokenHash: await sha256Hex(token) }
-  await expectOk(
-    await fetch(`/api/rooms/${config.roomId}/calendar`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', [ROSTER_KEY_HEADER]: config.key },
-      body: JSON.stringify(body),
-    }),
+/** Create the household's feed token (or get the existing one). */
+export async function enableCalendarFeed(): Promise<string> {
+  const res = await expectOk(
+    await fetch('/api/calendar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }),
   )
-  localStorage.setItem(CAL_ENABLED_KEY, '1')
+  const { token } = (await res.json()) as CalendarFeedResponse
+  if (token === null) throw new Error('calendar feed token missing')
+  return token
 }
 
 /** The subscribable .ics URL for a person (or the whole household). */
-export function calendarFeedUrl(
-  config: ShareConfig,
-  token: string,
-  opts: { personId?: string; tasks?: boolean } = {},
-): string {
-  const u = new URL(`${location.origin}/api/rooms/${config.roomId}/calendar.ics`)
+export function calendarFeedUrl(token: string, opts: { personId?: string; tasks?: boolean } = {}): string {
+  const u = new URL(`${location.origin}/api/calendar.ics`)
   u.searchParams.set(CALENDAR_TOKEN_PARAM, token)
   if (opts.personId) u.searchParams.set('person', opts.personId)
   if (opts.tasks) u.searchParams.set('kind', 'tasks')
   return u.toString()
 }
 
-/** Parse `#/r/<roomId>/<key>` from a location hash. */
-export function parseShareLink(hash: string): ShareConfig | null {
-  const m = hash.match(/^#\/r\/([0-9a-f-]{36})\/([A-Za-z0-9_-]{16,64})$/)
-  return m ? { roomId: m[1], key: m[2] } : null
-}
-
-function newRoomKey(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+export class SyncRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`sync request failed: ${status}`)
+    this.name = 'SyncRequestError'
+  }
 }
 
 async function expectOk(res: Response): Promise<Response> {
-  if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
+  if (!res.ok) throw new SyncRequestError(res.status)
   return res
 }
 
@@ -179,37 +130,6 @@ export class SyncClient {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
-  constructor(readonly config: ShareConfig) {}
-
-  /** Create a room seeded with `state`, persist the credential, return the client. */
-  static async create(state: AppState): Promise<SyncClient> {
-    const created = await expectOk(await fetch('/api/rooms', { method: 'POST' }))
-    const { roomId } = (await created.json()) as CreateRoomResponse
-    const config: ShareConfig = { roomId, key: newRoomKey() }
-
-    const body: InitRequest = { keyHash: await sha256Hex(config.key), state }
-    await expectOk(
-      await fetch(`/api/rooms/${config.roomId}/init`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      }),
-    )
-    saveShareConfig(config)
-    const client = new SyncClient(config)
-    client.rev = 1
-    return client
-  }
-
-  /** Join an existing room from a share link and persist the credential. */
-  static async join(config: ShareConfig): Promise<{ client: SyncClient; snapshot: Snapshot }> {
-    const client = new SyncClient(config)
-    const snapshot = await client.fetchSnapshot()
-    client.rev = snapshot.rev
-    saveShareConfig(config)
-    return { client, snapshot }
-  }
-
   /** Wire up callbacks, open the push channel, and flush any queued ops. */
   start(handlers: SyncHandlers): void {
     this.handlers = handlers
@@ -217,6 +137,7 @@ export class SyncClient {
     this.connect()
     this.setPolling(true)
     void this.flush()
+    void this.refreshSnapshot().catch(() => {})
   }
 
   /** Close the channel and stop timers. The pending queue stays persisted. */
@@ -253,7 +174,7 @@ export class SyncClient {
       }
       if (sawStale) await this.refreshSnapshot()
     } catch {
-      // offline or unauthorized: keep the queue, retry on reconnect/poll
+      // offline or signed out: keep the queue, retry on reconnect/poll
     } finally {
       this.flushing = false
     }
@@ -271,12 +192,12 @@ export class SyncClient {
   private connect(): void {
     if (this.stopped) return
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${scheme}://${location.host}/api/rooms/${this.config.roomId}/ws`)
+    const ws = new WebSocket(`${scheme}://${location.host}/api/ws`)
     this.ws = ws
 
     ws.onopen = () => {
-      const auth: ClientMessage = { t: 'auth', key: this.config.key }
-      ws.send(JSON.stringify(auth))
+      const hello: ClientMessage = { t: 'hello' }
+      ws.send(JSON.stringify(hello))
     }
 
     ws.onmessage = (event) => {
@@ -339,23 +260,16 @@ export class SyncClient {
   // ---- HTTP ------------------------------------------------------------
 
   async fetchSnapshot(): Promise<Snapshot> {
-    const res = await expectOk(
-      await fetch(`/api/rooms/${this.config.roomId}/state`, {
-        headers: { [ROSTER_KEY_HEADER]: this.config.key },
-      }),
-    )
+    const res = await expectOk(await fetch('/api/state'))
     return (await res.json()) as Snapshot
   }
 
   private async send(op: Op, baseRev: number): Promise<OpResponse> {
     const body: OpRequest = { baseRev, op }
     const res = await expectOk(
-      await fetch(`/api/rooms/${this.config.roomId}/op`, {
+      await fetch('/api/op', {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          [ROSTER_KEY_HEADER]: this.config.key,
-        },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
     )

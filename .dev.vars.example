@@ -1,0 +1,14 @@
+# Copy to .dev.vars (gitignored) for `pnpm dev:worker`. Values here override
+# wrangler.jsonc "vars" in local development only.
+
+# Must be "development" for DEV_IDENTITY_EMAIL to be accepted.
+ENVIRONMENT=development
+
+# Comma-separated household Google accounts allowed to use the app.
+HOUSEHOLD_EMAILS=you@example.com,partner@example.com
+
+# Skip Cloudflare Access locally and act as this household member.
+DEV_IDENTITY_EMAIL=you@example.com
+
+# Any UUID. Local rooms live in .wrangler/ and start with the example roster.
+HOUSEHOLD_ROOM_ID=00000000-0000-4000-8000-000000000000

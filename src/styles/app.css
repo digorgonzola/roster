@@ -605,7 +605,6 @@ select.input { width: auto; min-width: 160px; }
 .settings-rows .footnote { font-size: 13px; margin: var(--space-2) 0 0; }
 .btn-danger-outline { border-color: var(--color-danger); color: var(--color-danger-text); }
 .btn-danger-outline:hover { background: var(--color-danger-bg); }
-.share-none { margin: 0; align-self: center; }
 
 .slot-tags { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
 .slot-tags .tag { cursor: default; }
@@ -624,8 +623,6 @@ select.input { width: auto; min-width: 160px; }
   display: flex; gap: var(--space-2); align-items: center;
   border-top: 1px solid var(--color-divider); padding-top: var(--space-3);
 }
-.share-stop { color: var(--color-danger-text); }
-.share-qr { width: 180px; height: 180px; border: 1px solid var(--color-divider); background: var(--color-paper); }
 
 /* Calendar & task export card */
 .cal-card {
