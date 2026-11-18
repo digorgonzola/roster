@@ -1,5 +1,5 @@
 import type { AppState, Person, WeekEntry } from '../types'
-import { entriesForWeek } from '../schedule'
+import { entriesForWeek, doneKey } from '../schedule'
 import { startOfWeek, ymd } from '../week'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
 import { isEntryDone, longDate, myDayMeta } from '../labels'
@@ -9,7 +9,8 @@ interface Props {
   state: AppState
   person: Person | null
   onPersonChange: (id: string) => void
-  onToggleDone: (date: string, choreId: string) => void
+  /** `key` is the occurrence's done key (see doneKey). */
+  onToggleDone: (date: string, key: string) => void
 }
 
 /** Mobile "my day": one family member's chores for today, tick to complete. */
@@ -27,9 +28,9 @@ export function MyDay({ state, person, onPersonChange, onToggleDone }: Props) {
     const meta = myDayMeta(e, state.people)
     return (
       <button
-        key={`${e.chore.id}:${e.date}`}
+        key={`${doneKey(e)}:${e.date}`}
         className={`myday-row${done ? ' done' : ''}`}
-        onClick={() => onToggleDone(e.date, e.chore.id)}
+        onClick={() => onToggleDone(e.date, doneKey(e))}
       >
         <span className="myday-check" aria-hidden>{done && '✓'}</span>
         <span className="myday-row-text">

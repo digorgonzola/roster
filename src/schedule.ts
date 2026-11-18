@@ -1,4 +1,4 @@
-import type { AppState, Chore, DayIndex, WeeklySchedule, WeekEntry } from './types'
+import type { AppState, Chore, DayIndex, Person, WeeklySchedule, WeekEntry } from './types'
 import { assigneeForDate } from './rotation'
 import { isUnavailable } from './availability'
 import { addDays, isDateInWeek, isNthWeekdayOfMonth, parseYmd, startOfWeek, toDayIndex, weekNumber, weeklyInterval, ymd } from './week'
@@ -90,6 +90,7 @@ export function withRotationOffset(chore: Chore, existing: Chore[]): Chore {
  *
  * - weekly chores emit one entry per selected weekday that falls in the week.
  * - one-off chores emit a single entry when their date lands inside the week.
+ * - 'everyone' chores emit one entry per person on each of those occurrences.
  * - paused (switched-off) chores emit nothing.
  *
  * Rotated chores are phase-offset so they spread across people rather than all
@@ -140,8 +141,7 @@ function expandWeek(state: AppState, weekStart: Date): WeekEntry[] {
         const date = addDays(weekStart, i)
         const dayIndex = toDayIndex(date)
         if (sched.days.includes(dayIndex) && weeklyOccursOn(sched, date)) {
-          const assignee = assigneeForDate(chore, date, state.people, offset)
-          entries.push({ chore, dayIndex, date: ymd(date), assignee })
+          entries.push(...occurrence(chore, date, state.people, offset))
         }
       }
     } else if (chore.schedule.kind === 'monthly') {
@@ -149,20 +149,52 @@ function expandWeek(state: AppState, weekStart: Date): WeekEntry[] {
       for (let i = 0; i < 7; i++) {
         const date = addDays(weekStart, i)
         if (isNthWeekdayOfMonth(date, sched.weekday, sched.nth)) {
-          const assignee = assigneeForDate(chore, date, state.people, offset)
-          entries.push({ chore, dayIndex: toDayIndex(date), date: ymd(date), assignee })
+          entries.push(...occurrence(chore, date, state.people, offset))
         }
       }
     } else {
       if (isDateInWeek(chore.schedule.date, weekStart)) {
-        const date = parseYmd(chore.schedule.date)
-        const assignee = assigneeForDate(chore, date, state.people, offset)
-        entries.push({ chore, dayIndex: toDayIndex(date), date: chore.schedule.date, assignee })
+        entries.push(...occurrence(chore, parseYmd(chore.schedule.date), state.people, offset))
       }
     }
   }
 
   return entries
+}
+
+/**
+ * The entries for one occurrence of a chore: one per person for an 'everyone'
+ * chore, otherwise a single entry for whoever's turn it is.
+ *
+ * An 'everyone' chore leaves out people who are unavailable at its time of day,
+ * the same way a rotation skips them, rather than handing them an occurrence
+ * they can't do.
+ */
+function occurrence(chore: Chore, date: Date, people: Person[], offset: number): WeekEntry[] {
+  const dayIndex = toDayIndex(date)
+  const base = { chore, dayIndex, date: ymd(date) }
+  if (chore.assignment.mode !== 'everyone') {
+    return [{ ...base, assignee: assigneeForDate(chore, date, people, offset) }]
+  }
+  const ids = chore.assignment.personIds
+  return people
+    .filter((p) => ids.includes(p.id) && !isUnavailable(p, dayIndex, chore.timeOfDay))
+    .map((p) => ({ ...base, assignee: p }))
+}
+
+/**
+ * The key an occurrence is ticked off under in `AppState.done`. Everyone does
+ * an 'everyone' chore separately, so its key carries the person as well.
+ */
+export function doneKey(entry: WeekEntry): string {
+  return entry.chore.assignment.mode === 'everyone' && entry.assignee
+    ? `${entry.chore.id}:${entry.assignee.id}`
+    : entry.chore.id
+}
+
+/** Does this done key belong to the chore? Covers per-person 'everyone' keys. */
+export function isDoneKeyFor(key: string, choreId: string): boolean {
+  return key === choreId || key.startsWith(`${choreId}:`)
 }
 
 /**

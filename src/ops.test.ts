@@ -46,8 +46,10 @@ describe('applyOp', () => {
       chore({ id: 'c1', assignment: { mode: 'manual', personId: 'p2' } }),
       chore({ id: 'c2', assignment: { mode: 'rotate', personIds: ['p1', 'p2'] }, rotationOffset: 0 }),
       chore({ id: 'c3', assignment: { mode: 'byday', byDay: { 0: 'p2', 1: 'p1' } } }),
+      chore({ id: 'c4', assignment: { mode: 'everyone', personIds: ['p1', 'p2'] } }),
     ]
     s = applyOp(s, { t: 'deletePerson', id: 'p2' })
+    expect(s.chores[3].assignment).toEqual({ mode: 'everyone', personIds: ['p1'] })
     expect(s.chores[0].assignment).toEqual({ mode: 'manual', personId: null })
     expect(s.chores[1].assignment).toEqual({ mode: 'rotate', personIds: ['p1'] })
     expect(s.chores[2].assignment).toEqual({ mode: 'byday', byDay: { 0: null, 1: 'p1' } })
@@ -147,6 +149,14 @@ describe('applyOp', () => {
     let s = base()
     s.chores = [chore({ id: 'c1' }), chore({ id: 'c2' })]
     s.done = { '2026-08-03': ['c1', 'c2'], '2026-08-04': ['c1'] }
+    s = applyOp(s, { t: 'deleteChore', id: 'c1' })
+    expect(s.done).toEqual({ '2026-08-03': ['c2'] })
+  })
+
+  it("deleteChore also removes an 'everyone' chore's per-person completions", () => {
+    let s = base()
+    s.chores = [chore({ id: 'c1', assignment: { mode: 'everyone', personIds: ['p1', 'p2'] } }), chore({ id: 'c2' })]
+    s.done = { '2026-08-03': ['c1:p1', 'c1:p2', 'c2'] }
     s = applyOp(s, { t: 'deleteChore', id: 'c1' })
     expect(s.done).toEqual({ '2026-08-03': ['c2'] })
   })

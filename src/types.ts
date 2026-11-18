@@ -73,7 +73,16 @@ export interface ByDayAssignment {
   byDay: Partial<Record<DayIndex, string | null>>
 }
 
-export type Assignment = ManualAssignment | RotateAssignment | ByDayAssignment
+/**
+ * Every listed person does it on each occurrence, e.g. "make your bed". Each
+ * person gets their own occurrence and ticks it off on their own.
+ */
+export interface EveryoneAssignment {
+  mode: 'everyone'
+  personIds: string[]
+}
+
+export type Assignment = ManualAssignment | RotateAssignment | ByDayAssignment | EveryoneAssignment
 
 export interface Chore {
   id: string
@@ -109,7 +118,10 @@ export interface AppState {
    * Missing keys fall back to the defaults in timeofday.ts.
    */
   timeOfDayLabels?: Partial<Record<TimeOfDay, string>>
-  /** Completed occurrences, keyed 'YYYY-MM-DD' → chore ids done that day. */
+  /**
+   * Completed occurrences, keyed 'YYYY-MM-DD' → done keys for that day: the
+   * chore id, or 'choreId:personId' for an 'everyone' chore (see doneKey).
+   */
   done: Record<string, string[]>
 }
 

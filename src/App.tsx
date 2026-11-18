@@ -209,9 +209,9 @@ export default function App() {
   const setChorePaused = (choreId: string, paused: boolean) =>
     dispatch({ t: 'setChorePaused', choreId, paused })
 
-  // ---- Completion (per chore per date; history, never rewritten) ----
-  const toggleDone = (date: string, choreId: string) =>
-    dispatch({ t: 'setDone', date, choreId, done: !(state.done[date] ?? []).includes(choreId) })
+  // ---- Completion (per occurrence per date; history, never rewritten) ----
+  const toggleDone = (date: string, key: string) =>
+    dispatch({ t: 'setDone', date, choreId: key, done: !(state.done[date] ?? []).includes(key) })
 
   // ---- Assigning (writes to the chore, not the occurrence) ----
   const assign = (target: AssignTarget, choice: AssignChoice) => {

@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import type { AppState, DayIndex } from '../types'
-import { entriesForWeek } from '../schedule'
+import { entriesForWeek, doneKey } from '../schedule'
 import { DAY_NAMES, addDays, daysOfWeek, toDayIndex, ymd } from '../week'
 import { longDate, timeTag } from '../labels'
 import { Avatar } from './Avatar'
@@ -62,7 +62,7 @@ export function MobileWeek({ state, weekStart, onPrevWeek, onNextWeek, selectedD
         {dayEntries.map((e) =>
           e.assignee ? (
             <button
-              key={`${e.chore.id}:${e.date}`}
+              key={`${doneKey(e)}:${e.date}`}
               className="mweek-row"
               onClick={() => onOpenChore(e.chore.id)}
             >
@@ -72,7 +72,7 @@ export function MobileWeek({ state, weekStart, onPrevWeek, onNextWeek, selectedD
             </button>
           ) : (
             <button
-              key={`${e.chore.id}:${e.date}`}
+              key={`${doneKey(e)}:${e.date}`}
               className="mweek-row unassigned"
               onClick={() => onAssign({ choreId: e.chore.id, date: e.date })}
             >

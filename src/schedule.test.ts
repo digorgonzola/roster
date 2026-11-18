@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AppState, Chore, DayIndex, DayPart, Person, TimeOfDay } from './types'
-import { entriesForWeek, nextRotationOffset, rotationOffsets } from './schedule'
+import { doneKey, entriesForWeek, isDoneKeyFor, nextRotationOffset, rotationOffsets } from './schedule'
 import { assigneeForDate } from './rotation'
 import { isUnavailable } from './availability'
 import { addDays, parseYmd } from './week'
@@ -200,5 +200,50 @@ describe('daily load balancing', () => {
         if (seen !== undefined) expect(e.assignee?.id).toBe(seen)
       }
     }
+  })
+})
+
+describe("'everyone' chores", () => {
+  const weekStart = new Date(2026, 7, 3) // Monday 2026-08-03
+  const everyone = (personIds: string[], over: Partial<Chore> = {}): Chore => ({
+    id: 'bed',
+    name: 'Make bed',
+    schedule: { kind: 'weekly', days: [0, 1, 2, 3, 4, 5, 6] },
+    assignment: { mode: 'everyone', personIds },
+    ...over,
+  })
+
+  it('gives each listed person their own entry on every occurrence', () => {
+    const entries = entriesForWeek(state([everyone(['p1', 'p3'])]), weekStart)
+    expect(entries).toHaveLength(14)
+    for (let day = 0; day < 7; day++) {
+      const names = entries.filter((e) => e.dayIndex === day).map((e) => e.assignee?.name).sort()
+      expect(names).toEqual(['Alex', 'Jordan'])
+    }
+  })
+
+  it('leaves out people who are unavailable at its time of day', () => {
+    const s = state([everyone(['p1', 'p2'], { timeOfDay: 'evening' })])
+    s.people[1] = { ...s.people[1], unavailable: { 1: ['evening'] } } // Sam, Tuesday evenings
+    const tuesday = entriesForWeek(s, weekStart).filter((e) => e.dayIndex === 1)
+    expect(tuesday.map((e) => e.assignee?.name)).toEqual(['Alex'])
+  })
+
+  it('ignores ids of people who no longer exist', () => {
+    const entries = entriesForWeek(state([everyone(['p1', 'gone'])]), weekStart)
+    expect(new Set(entries.map((e) => e.assignee?.id))).toEqual(new Set(['p1']))
+  })
+
+  it('keys completion per person, and other chores by id alone', () => {
+    const [bed] = entriesForWeek(state([everyone(['p2'])]), weekStart)
+    expect(doneKey(bed)).toBe('bed:p2')
+    const [dishes] = entriesForWeek(state([rotate('dishes', 0, 'daily')]), weekStart)
+    expect(doneKey(dishes)).toBe('dishes')
+  })
+
+  it('matches done keys to their chore without matching a different chore', () => {
+    expect(isDoneKeyFor('bed', 'bed')).toBe(true)
+    expect(isDoneKeyFor('bed:p2', 'bed')).toBe(true)
+    expect(isDoneKeyFor('bedroom', 'bed')).toBe(false)
   })
 })

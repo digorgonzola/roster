@@ -1,5 +1,5 @@
 import type { AppState, WeekEntry } from '../types'
-import { entriesForWeek } from '../schedule'
+import { entriesForWeek, doneKey } from '../schedule'
 import { DAY_NAMES, daysOfWeek, toDayIndex, weekLabelLong } from '../week'
 import { initials, patternFor } from '../palette'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
@@ -109,7 +109,7 @@ function PrintGrid({ state, weekStart, entries, options }: {
             <div key={d.toISOString()} className="pr-grid-cell">
               {entries
                 .filter((e) => e.dayIndex === toDayIndex(d) && (e.chore.timeOfDay ?? 'anytime') === slot.key)
-                .map((e) => <Entry key={`${e.chore.id}:${e.date}`} e={e} options={options} />)}
+                .map((e) => <Entry key={`${doneKey(e)}:${e.date}`} e={e} options={options} />)}
             </div>
           ))}
         </div>
@@ -131,7 +131,7 @@ function PrintPeople({ state, weekStart, entries, options }: {
 
   const cell = (items: WeekEntry[]) =>
     items.map((e) => (
-      <div key={`${e.chore.id}:${e.date}`} className="pr-lane-item">
+      <div key={`${doneKey(e)}:${e.date}`} className="pr-lane-item">
         {options.tickBoxes && <span className="pr-tick" />}
         <span className="pr-entry-text">
           {e.chore.name}
@@ -208,7 +208,7 @@ function PrintCards({ state, entries, options }: {
         <span className="pr-card-day">{DAY_NAMES[day]}</span>
         <span className="pr-card-lines">
           {dayItems.map((e) => (
-            <span key={`${e.chore.id}:${e.date}`} className="pr-card-line">
+            <span key={`${doneKey(e)}:${e.date}`} className="pr-card-line">
               {options.tickBoxes && <span className="pr-tick" />}
               {e.chore.name}
               {options.notes && e.chore.notes && <span className="pr-entry-note"> · {e.chore.notes}</span>}
