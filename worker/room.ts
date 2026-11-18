@@ -4,43 +4,41 @@ import { applyOp, type Op } from '../src/ops'
 import { seedState } from '../src/seed'
 import { buildCalendar, buildTasks, calendarName } from '../src/ics'
 import type {
-  CalendarFeedResponse,
   ClientMessage,
   OpRequest,
   OpResponse,
   ServerMessage,
   Snapshot,
 } from '../src/sync/protocol'
-import { CALENDAR_TOKEN_PARAM } from '../src/sync/protocol'
 import type { Env } from './env'
 import { json } from './http'
+
+/** Set by the Worker on forwarded requests: the signed-in member. */
+export const MEMBER_EMAIL_HEADER = 'X-Roster-Member'
 
 /** How many weeks of occurrences the subscribable feed materialises ahead. */
 const FEED_WEEKS = 13
 
 /**
- * The household's shared roster. The DO serializes all writes, so ops apply
- * one at a time to the authoritative state and `rev` increases by exactly 1
- * per op.
+ * One household's shared roster, named by the household id. The DO
+ * serializes all writes, so ops apply one at a time to the authoritative
+ * state and `rev` increases by exactly 1 per op.
  *
- * Only the Worker reaches this object, and it forwards a request only after
- * Cloudflare Access identified a household member. The calendar feed is the
- * one exception: it carries its own read-only token.
+ * Only the Worker reaches this object. It forwards a request only after it
+ * found the signed-in member's household, or a valid calendar feed token.
  *
- * Storage keys: `state` (AppState JSON), `rev` (number), `calToken` (feed
- * token). Rooms made before sign-in also hold unused `keyHash`, `fails` and
- * `calTokenHash` keys.
+ * Storage keys: `state` (AppState JSON), `rev` (number). Rooms made before
+ * sign-in also hold unused `keyHash`, `fails` and `calTokenHash` keys.
  */
 export class RosterRoom extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
-    const route = `${request.method} ${url.pathname.replace(/^\/api/, '')}`
+    const route = `${request.method} ${url.pathname}`
 
     if (route === 'GET /state') return this.snapshot()
     if (route === 'POST /op') return this.op(request)
     if (route === 'GET /ws') return this.upgrade(request)
-    if (route === 'GET /calendar') return this.readCalendarToken()
-    if (route === 'POST /calendar') return this.enableCalendar()
+    if (route === 'POST /disconnect') return this.disconnect(request)
     if (route === 'GET /calendar.ics') return this.serveCalendar(request)
     return json({ error: 'NOT_FOUND_ROUTE' }, 404)
   }
@@ -51,8 +49,20 @@ export class RosterRoom extends DurableObject<Env> {
       return json({ error: 'VALIDATION_EXPECTED_WEBSOCKET' }, 426)
     }
     const pair = new WebSocketPair()
-    this.ctx.acceptWebSocket(pair[1])
+    // Tagged with the member, so their sockets close when they leave the household.
+    const email = request.headers.get(MEMBER_EMAIL_HEADER)
+    this.ctx.acceptWebSocket(pair[1], email ? [email] : [])
     return new Response(null, { status: 101, webSocket: pair[0] })
+  }
+
+  /** A member left this household: stop pushing its roster to their open devices. */
+  private disconnect(request: Request): Response {
+    const email = request.headers.get(MEMBER_EMAIL_HEADER)
+    if (email) {
+      for (const ws of this.ctx.getWebSockets(email)) ws.close(4001, 'left household')
+    }
+    this.broadcastPresence()
+    return json({ ok: true })
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -128,33 +138,9 @@ export class RosterRoom extends DurableObject<Env> {
     return json({ rev: nextRev, stale: body.baseRev !== rev } satisfies OpResponse)
   }
 
-  private async readCalendarToken(): Promise<Response> {
-    const token = (await this.ctx.storage.get<string>('calToken')) ?? null
-    return json({ token } satisfies CalendarFeedResponse)
-  }
-
-  /** Create the feed token once. Later calls return the same token, so every member shares one URL. */
-  private async enableCalendar(): Promise<Response> {
-    let token = await this.ctx.storage.get<string>('calToken')
-    if (token === undefined) {
-      token = randomToken()
-      await this.ctx.storage.put('calToken', token)
-    }
-    return json({ token } satisfies CalendarFeedResponse)
-  }
-
-  /**
-   * Serve a rolling window of chore occurrences as an .ics feed. The token in
-   * the query grants read-only access; it cannot be used to write ops. A
-   * missing or wrong token gets 401 either way, so a bad URL reveals nothing.
-   */
+  /** Serve a rolling window of chore occurrences as an .ics feed. The Worker checked the feed token. */
   private async serveCalendar(request: Request): Promise<Response> {
     const url = new URL(request.url)
-    const presented = url.searchParams.get(CALENDAR_TOKEN_PARAM)
-    const stored = await this.ctx.storage.get<string>('calToken')
-    if (presented === null || stored === undefined || !(await tokensMatch(presented, stored))) {
-      return json({ error: 'AUTH_BAD_FEED_TOKEN' }, 401)
-    }
     const { state } = await this.load()
 
     const personId = url.searchParams.get('person') ?? undefined
@@ -176,16 +162,4 @@ export class RosterRoom extends DurableObject<Env> {
       },
     })
   }
-}
-
-function randomToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32))
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-// Compare digests so the comparison is constant-time even when the lengths differ.
-async function tokensMatch(presented: string, stored: string): Promise<boolean> {
-  const encode = (text: string) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  const [a, b] = await Promise.all([encode(presented), encode(stored)])
-  return crypto.subtle.timingSafeEqual(a, b)
 }

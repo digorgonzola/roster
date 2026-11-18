@@ -8,16 +8,25 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [{ "pattern": "roster.crunchyapple.xyz", "custom_domain": true }],
-  // HOUSEHOLD_EMAILS is a secret (`wrangler secret put`) so household
-  // addresses stay out of this public repo. HOUSEHOLD_ROOM_ID names the
-  // household's RosterRoom; it is not a credential. The Worker answers every
-  // API request with 500 until these are valid (docs/setup.md).
+  // HOUSEHOLD_EMAILS is an optional secret (`wrangler secret put`): people
+  // who join the default household at first sign-in. The Worker answers every
+  // API request with 500 until the Access vars are valid (docs/setup.md).
   "vars": {
     "ENVIRONMENT": "production",
     "ACCESS_TEAM_DOMAIN": "https://crunchyapple.cloudflareaccess.com",
-    "ACCESS_AUD": "",
-    "HOUSEHOLD_ROOM_ID": ""
+    "ACCESS_AUD": "ee1e0fad6f9830754aae4d65f0f42e9a76f6b96adbe51faa896937bd179cd308"
   },
+  // Households, memberships and invites. Migrations run before each deploy
+  // (.github/workflows/deploy.yml) and stay additive: the old Worker serves
+  // until the deploy finishes.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "roster",
+      "database_id": "c64c13e5-5211-49a9-b52f-0b3aa1ca09f6",
+      "migrations_dir": "migrations"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -30,26 +39,20 @@
   },
   "migrations": [
     // SQLite-backed classes: required for Durable Objects on the free plan.
-    // NOTE: branch builds (wrangler versions upload) cannot apply a PENDING
-    // DO migration (Cloudflare error 10211). This migration is already
-    // applied to the deployed Worker, so version uploads pass. Any FUTURE
-    // migration added here will fail branch builds until a production
-    // deploy applies it. Do not point branch builds at `wrangler deploy`:
-    // Workers Builds pins the Worker name, ignores a different env name,
-    // and full-deploys the branch to production.
+    // Production deploys run `wrangler deploy` from GitHub Actions, which
+    // applies a new DO migration. Never connect Workers Builds: its branch
+    // builds cannot apply DO migrations and would bind production D1.
     { "tag": "v1", "new_sqlite_classes": ["RosterRoom"] }
   ],
   "env": {
-    // PR preview deployments (deployed from GitHub Actions, NOT Workers
-    // Builds — see .github/workflows/deploy-preview.yml). A separate Worker
-    // ("roster-preview") because Cloudflare does not generate Preview URLs
-    // for Workers that implement a Durable Object, so branch-build version
-    // uploads of the production Worker yield no usable preview.
+    // PR preview deployments (deployed from GitHub Actions, see
+    // .github/workflows/deploy-preview.yml). A separate Worker
+    // ("roster-preview") with its own D1 database and DO namespace, so
+    // preview data is isolated from production.
     //
-    // Bindings and migrations are NON-inheritable per-environment keys in
-    // wrangler config, so the DO binding and migrations are repeated here.
-    // Keep them in lockstep with the top-level config. The preview Worker
-    // has its own DO namespace, so preview data is isolated from production.
+    // Bindings, vars and migrations are NON-inheritable per-environment keys
+    // in wrangler config, so they are repeated here. Keep them in lockstep
+    // with the top-level config.
     "preview": {
       "name": "roster-preview",
       // Previews live on workers.dev, protected by one-click Access
@@ -62,9 +65,16 @@
       "vars": {
         "ENVIRONMENT": "preview",
         "ACCESS_TEAM_DOMAIN": "https://crunchyapple.cloudflareaccess.com",
-        "ACCESS_AUD": "",
-        "HOUSEHOLD_ROOM_ID": "7d0f4a52-3c1e-4b8a-9f62-5e2d8c41a9b3"
+        "ACCESS_AUD": "ee1e0fad6f9830754aae4d65f0f42e9a76f6b96adbe51faa896937bd179cd308"
       },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "roster-preview",
+          "database_id": "c8a6c81d-0165-451e-8f13-093975cffa9f",
+          "migrations_dir": "migrations"
+        }
+      ],
       "durable_objects": {
         "bindings": [{ "name": "ROOMS", "class_name": "RosterRoom" }]
       },

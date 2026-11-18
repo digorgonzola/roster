@@ -19,9 +19,9 @@ function accessKeys(teamDomain: string): JWTVerifyGetKey {
 }
 
 /**
- * Identifies the household member behind a request from the Cloudflare Access JWT.
- * `getKey` replaces the remote Access key set in tests.
- * @throws AuthError 401 for a missing or invalid token, 403 for a valid token outside the household.
+ * Identifies the person behind a request from the Cloudflare Access JWT. The Access policy is the
+ * only list of who can sign in. `getKey` replaces the remote Access key set in tests.
+ * @throws AuthError 401 for a missing or invalid token, 403 for a token without an email.
  */
 export async function authenticate(request: Request, config: Config, getKey?: JWTVerifyGetKey): Promise<Identity> {
   if (config.devIdentityEmail) return { email: config.devIdentityEmail }
@@ -40,7 +40,7 @@ export async function authenticate(request: Request, config: Config, getKey?: JW
   })
 
   const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : null
-  if (!email || !config.householdEmails.has(email)) throw new AuthError(403)
+  if (!email) throw new AuthError(403)
   return { email }
 }
 

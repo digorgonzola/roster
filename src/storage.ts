@@ -40,6 +40,9 @@ export function save(state: AppState): void {
 }
 
 export function clearStored(): void {
+  // A debounced save still queued would write the cleared roster back.
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = null
   try {
     localStorage.removeItem(KEY)
   } catch {

@@ -4,8 +4,7 @@ import { ConfigError } from './errors'
 const ENVIRONMENTS = ['development', 'preview', 'production'] as const
 const TEAM_DOMAIN_PATTERN = /^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/
 const AUD_PATTERN = /^[a-f0-9]{64}$/
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-const EMAIL_PATTERN = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/
+export const EMAIL_PATTERN = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/
 
 export interface AccessConfig {
   teamDomain: string
@@ -16,8 +15,8 @@ export interface Config {
   environment: (typeof ENVIRONMENTS)[number]
   /** Null only when local development uses devIdentityEmail instead of Access. */
   access: AccessConfig | null
-  householdEmails: ReadonlySet<string>
-  householdRoomId: string
+  /** People who join the default household at first sign-in instead of getting a new one. */
+  defaultHouseholdEmails: ReadonlySet<string>
   devIdentityEmail: string | null
 }
 
@@ -43,23 +42,17 @@ export function parseConfig(env: Env): Config {
     throw new ConfigError('DEV_IDENTITY_EMAIL is only allowed when ENVIRONMENT=development')
   }
 
-  const householdEmails = new Set(
-    required(env.HOUSEHOLD_EMAILS, 'HOUSEHOLD_EMAILS')
+  const defaultHouseholdEmails = new Set(
+    (env.HOUSEHOLD_EMAILS ?? '')
       .split(',')
+      .filter((entry) => entry.trim() !== '')
       .map((entry) => parseEmail(entry, 'HOUSEHOLD_EMAILS')),
   )
-  if (devIdentityEmail && !householdEmails.has(devIdentityEmail)) {
-    throw new ConfigError('DEV_IDENTITY_EMAIL must be one of HOUSEHOLD_EMAILS')
-  }
-
-  const householdRoomId = required(env.HOUSEHOLD_ROOM_ID, 'HOUSEHOLD_ROOM_ID')
-  if (!UUID_PATTERN.test(householdRoomId)) throw new ConfigError('HOUSEHOLD_ROOM_ID must be a lower-case UUID')
 
   return Object.freeze({
     environment,
     access: devIdentityEmail ? null : parseAccess(env),
-    householdEmails,
-    householdRoomId,
+    defaultHouseholdEmails,
     devIdentityEmail,
   })
 }

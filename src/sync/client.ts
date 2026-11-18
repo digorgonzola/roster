@@ -2,8 +2,13 @@ import type { AppState } from '../types'
 import type { Op } from '../ops'
 import {
   CALENDAR_TOKEN_PARAM,
+  HOUSEHOLD_CHANGED,
+  HOUSEHOLD_HEADER,
   type CalendarFeedResponse,
   type ClientMessage,
+  type ErrorResponse,
+  type HouseholdPatch,
+  type InviteRequest,
   type Me,
   type OpRequest,
   type OpResponse,
@@ -27,6 +32,8 @@ import {
  */
 
 const PENDING_KEY = 'roster.pending.v1'
+/** The household the local copy and pending queue belong to. */
+const HOUSEHOLD_KEY = 'roster.household.v1'
 /** Share-link credentials from before sign-in. Removed so no device keeps an unused secret. */
 const LEGACY_KEYS = ['roster.share.v1', 'roster.cal.v1']
 const FALLBACK_POLL_MS = 30_000
@@ -46,6 +53,11 @@ export interface SyncHandlers {
    * down, when the count is unknown.
    */
   onPresence?: (devices: number | null) => void
+  /**
+   * The person moved to another household (on another device). The local copy
+   * and pending ops belong to the old one: drop them and start again.
+   */
+  onHouseholdChanged: () => void
 }
 
 export function clearLegacyShareConfig(): void {
@@ -56,9 +68,76 @@ export function clearLegacyShareConfig(): void {
   }
 }
 
-/** The signed-in household member. */
+function storedHousehold(): string | null {
+  try {
+    return localStorage.getItem(HOUSEHOLD_KEY)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Record the household from /api/me. Returns false when the device holds
+ * another household's copy: the caller must reset and reload.
+ */
+export function rememberHousehold(householdId: string): boolean {
+  const stored = storedHousehold()
+  if (stored !== null && stored !== householdId) return false
+  try {
+    localStorage.setItem(HOUSEHOLD_KEY, householdId)
+  } catch {
+    // storage disabled: ops are sent without the household guard
+  }
+  return true
+}
+
+/** Forget the local household, its pending ops, and the household it belonged to. */
+export function resetLocalHousehold(): void {
+  try {
+    localStorage.removeItem(PENDING_KEY)
+    localStorage.removeItem(HOUSEHOLD_KEY)
+  } catch {
+    // storage disabled: nothing stored to clear
+  }
+}
+
+/** The signed-in person, their household and the invites waiting for them. */
 export async function fetchMe(): Promise<Me> {
-  return (await (await expectOk(await fetch('/api/me'))).json()) as Me
+  return readMe(await fetch('/api/me'))
+}
+
+async function readMe(res: Response): Promise<Me> {
+  return (await (await expectOk(res)).json()) as Me
+}
+
+function sendJson(method: string, path: string, body?: unknown): Promise<Response> {
+  return fetch(path, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  })
+}
+
+export async function renameHousehold(name: string): Promise<Me> {
+  return readMe(await sendJson('PATCH', '/api/household', { name } satisfies HouseholdPatch))
+}
+
+export async function inviteMember(email: string): Promise<Me> {
+  return readMe(await sendJson('POST', '/api/household/invites', { email } satisfies InviteRequest))
+}
+
+export async function cancelInvite(inviteId: string): Promise<Me> {
+  return readMe(await sendJson('DELETE', `/api/household/invites/${encodeURIComponent(inviteId)}`))
+}
+
+/** Moves the person to the inviting household. Reset and reload afterwards. */
+export async function acceptInvite(inviteId: string): Promise<Me> {
+  return readMe(await sendJson('POST', `/api/household/invites/${encodeURIComponent(inviteId)}/accept`))
+}
+
+/** Moves the person to a new household of one. Reset and reload afterwards. */
+export async function leaveHousehold(): Promise<Me> {
+  return readMe(await sendJson('POST', '/api/household/leave'))
 }
 
 /** The calendar feed token, or null until a member enables the feed. */
@@ -69,9 +148,7 @@ export async function fetchCalendarToken(): Promise<string | null> {
 
 /** Create the household's feed token (or get the existing one). */
 export async function enableCalendarFeed(): Promise<string> {
-  const res = await expectOk(
-    await fetch('/api/calendar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }),
-  )
+  const res = await expectOk(await sendJson('POST', '/api/calendar'))
   const { token } = (await res.json()) as CalendarFeedResponse
   if (token === null) throw new Error('calendar feed token missing')
   return token
@@ -86,16 +163,21 @@ export function calendarFeedUrl(token: string, opts: { personId?: string; tasks?
   return u.toString()
 }
 
+/** A non-2xx response. `code` is the server's error code, when it sent one. */
 export class SyncRequestError extends Error {
-  constructor(readonly status: number) {
-    super(`sync request failed: ${status}`)
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(`sync request failed: ${status}${code ? ` ${code}` : ''}`)
     this.name = 'SyncRequestError'
   }
 }
 
 async function expectOk(res: Response): Promise<Response> {
-  if (!res.ok) throw new SyncRequestError(res.status)
-  return res
+  if (res.ok) return res
+  const body = (await res.json().catch(() => null)) as ErrorResponse | null
+  throw new SyncRequestError(res.status, typeof body?.error === 'string' ? body.error : null)
 }
 
 function loadPending(): Op[] {
@@ -116,6 +198,11 @@ function savePending(pending: Op[]): void {
   } catch {
     // storage full: the queue still lives in memory for this session
   }
+}
+
+function householdHeader(): Record<string, string> {
+  const householdId = storedHousehold()
+  return householdId ? { [HOUSEHOLD_HEADER]: householdId } : {}
 }
 
 export class SyncClient {
@@ -173,8 +260,11 @@ export class SyncClient {
         savePending(this.pending)
       }
       if (sawStale) await this.refreshSnapshot()
-    } catch {
-      // offline or signed out: keep the queue, retry on reconnect/poll
+    } catch (err) {
+      if (err instanceof SyncRequestError && err.code === HOUSEHOLD_CHANGED) {
+        this.handlers?.onHouseholdChanged()
+      }
+      // otherwise offline or signed out: keep the queue, retry on reconnect/poll
     } finally {
       this.flushing = false
     }
@@ -269,7 +359,7 @@ export class SyncClient {
     const res = await expectOk(
       await fetch('/api/op', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...householdHeader() },
         body: JSON.stringify(body),
       }),
     )

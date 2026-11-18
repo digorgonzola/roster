@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { AppState, TimeOfDay } from '../types'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
-import type { Me } from '../sync/protocol'
+import type { InviteForMe, Me } from '../sync/protocol'
+import { HouseholdDetails } from './Household'
 
 /** Ends the Cloudflare Access session. */
 export const SIGN_OUT_URL = '/cdn-cgi/access/logout'
@@ -18,6 +19,12 @@ interface Props {
   importError: string
   /** The signed-in member; null until /api/me answers (or while offline). */
   me: Me | null
+  /** A household change succeeded: the server's updated view of the person. */
+  onMeChange: (me: Me) => void
+  /** Asks first, joins, and reloads into the new household. Rejects when the request fails. */
+  onJoinHousehold: (invite: InviteForMe) => Promise<void>
+  /** Asks first, leaves, and reloads into a new household. Rejects when the request fails. */
+  onLeaveHousehold: () => Promise<void>
   /** Open sockets in the room; null while the push channel is down. */
   deviceCount: number | null
   /** Download an .ics: calendar events (tasks=false) or reminders (tasks=true). */
@@ -46,9 +53,9 @@ function AccountCard({ me, deviceCount }: { me: Me | null; deviceCount: number |
         <strong>{deviceCount === null ? 'Connecting…' : syncStatus(deviceCount)}</strong>
       </div>
       <p className="text-muted footnote share-card-note">
-        {me ? <>Signed in as <strong>{me.email}</strong>.</> : 'Signed in.'} Everyone in the household
-        sees the same roster.
-        {me && me.household.length > 1 && <> Members: {me.household.join(', ')}.</>}
+        {me
+          ? <>Signed in as <strong>{me.email}</strong>. Everyone in the household sees the same roster.</>
+          : 'Household details load when you are online.'}
       </p>
       <div className="share-card-actions">
         <a className="btn btn-secondary" href={SIGN_OUT_URL}>Sign out</a>
@@ -263,12 +270,21 @@ export function SettingsPage(props: Props) {
       </div>
 
       <hr className="hr settings-hr" />
-      <h6>Account</h6>
+      <h6>Household</h6>
       <div className="settings-rows">
-        <div className="settings-label">Household sync</div>
+        <div className="settings-label">Sync</div>
         <div>
           <AccountCard me={props.me} deviceCount={props.deviceCount} />
         </div>
+        {props.me && (
+          <HouseholdDetails
+            me={props.me}
+            stacked={false}
+            onMeChange={props.onMeChange}
+            onJoinHousehold={props.onJoinHousehold}
+            onLeaveHousehold={props.onLeaveHousehold}
+          />
+        )}
       </div>
 
       <div ref={calRef} className={`settings-section${flash ? ' settings-flash' : ''}`}>
@@ -321,14 +337,17 @@ export function SettingsPage(props: Props) {
   )
 }
 
+type MobileDrillIn = 'week' | 'labels' | 'sync' | 'household' | 'cal'
+
 /** Design 3c: grouped list rows; the drill-in rows expand in place. */
 function MobileSettings(props: Props & {
   fileRef: React.RefObject<HTMLInputElement | null>
   fileInput: React.ReactNode
 }) {
   const { state } = props
-  const [open, setOpen] = useState<'week' | 'labels' | 'sync' | 'cal' | null>(null)
-  const toggle = (k: 'week' | 'labels' | 'sync' | 'cal') => setOpen((v) => (v === k ? null : k))
+  const [open, setOpen] = useState<MobileDrillIn | null>(null)
+  const toggle = (k: MobileDrillIn) => setOpen((v) => (v === k ? null : k))
+  const { me } = props
 
   return (
     <div className="mset">
@@ -356,7 +375,7 @@ function MobileSettings(props: Props & {
         </div>
       )}
 
-      <h6 className="mset-section">Account</h6>
+      <h6 className="mset-section">Household</h6>
       <button className="mset-row mset-row-tall" onClick={() => toggle('sync')} aria-expanded={open === 'sync'}>
         <span className="mset-row-main">
           <span className="mset-row-top">
@@ -365,13 +384,35 @@ function MobileSettings(props: Props & {
               {props.deviceCount === null ? 'Connecting…' : syncStatus(props.deviceCount)}
             </span>
           </span>
-          <span className="text-muted mset-row-sub">{props.me?.email ?? 'Signed in'}</span>
+          <span className="text-muted mset-row-sub">{me?.email ?? 'Signed in'}</span>
         </span>
         <ChevronRight size={16} className={`mset-chevron${open === 'sync' ? ' open' : ''}`} />
       </button>
       {open === 'sync' && (
         <div className="mset-detail">
-          <AccountCard me={props.me} deviceCount={props.deviceCount} />
+          <AccountCard me={me} deviceCount={props.deviceCount} />
+        </div>
+      )}
+      {me && (
+        <button className="mset-row mset-row-tall" onClick={() => toggle('household')} aria-expanded={open === 'household'}>
+          <span className="mset-row-main">
+            <span className="mset-row-label">{me.household.name}</span>
+            <span className="text-muted mset-row-sub">
+              {me.household.members.length === 1 ? '1 member' : `${me.household.members.length} members`}
+            </span>
+          </span>
+          <ChevronRight size={16} className={`mset-chevron${open === 'household' ? ' open' : ''}`} />
+        </button>
+      )}
+      {me && open === 'household' && (
+        <div className="mset-detail">
+          <HouseholdDetails
+            me={me}
+            stacked
+            onMeChange={props.onMeChange}
+            onJoinHousehold={props.onJoinHousehold}
+            onLeaveHousehold={props.onLeaveHousehold}
+          />
         </div>
       )}
 

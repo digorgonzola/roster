@@ -59,17 +59,20 @@ every run. In CI, install with `pnpm install --frozen-lockfile`.
 - **Print roster** — choose **Weekly grid** or **Per-person cards**, then
   *Print / Save PDF*. Layout is A4 with tick boxes and a person key.
 - **Settings** — pick the week start day, rename the time-of-day row headings,
-  see who is signed in, and export / import / reset the data.
+  manage your household, and export / import / reset the data.
 
-## Sign-in & sync
+## Sign-in, households & sync
 
-Household members sign in with Google through Cloudflare Access. Everyone signed
-in sees and edits the same roster, which lives in a Cloudflare Durable Object.
-Each browser keeps a copy so the app works offline, and edits sync when the
-connection returns. Losing a browser loses nothing: sign in again.
+People sign in with Google through Cloudflare Access. Each person belongs to
+one **household**, and everyone in a household sees and edits the same roster,
+which lives in a Cloudflare Durable Object. Each browser keeps a copy so the
+app works offline, and edits sync when the connection returns. Losing a
+browser loses nothing: sign in again.
 
-To add someone, add their Google address to the Access policy and to the
-`HOUSEHOLD_EMAILS` secret ([docs/setup.md](docs/setup.md)).
+In **Settings → Household**, rename the household, invite someone by email,
+or leave. A new person gets a household of their own until they accept an
+invite. Everyone also needs to be on the Access sign-in list
+([docs/setup.md](docs/setup.md)).
 
 ## Backup
 
@@ -101,6 +104,7 @@ Two ways to get them across:
 ## Tech
 
 Vite + React + TypeScript, plain CSS. No tracking. A small Cloudflare Worker
-checks the Access sign-in and stores the household roster in a Durable Object.
+checks the Access sign-in, keeps households and invites in D1, and stores each
+household's roster in a Durable Object.
 For local development run `pnpm dev` (app) and `pnpm dev:worker` (API) side by
 side.

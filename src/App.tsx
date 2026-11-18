@@ -7,19 +7,24 @@ import { applyOp, type Op } from './ops'
 import {
   SyncClient,
   SyncRequestError,
+  acceptInvite,
   calendarFeedUrl,
   clearLegacyShareConfig,
   enableCalendarFeed,
   fetchCalendarToken,
   fetchMe,
+  leaveHousehold,
+  rememberHousehold,
+  resetLocalHousehold,
 } from './sync/client'
-import type { Me } from './sync/protocol'
+import type { InviteForMe, Me } from './sync/protocol'
 import { addDays, startOfWeek, toDayIndex } from './week'
 import { Nav, type Page } from './components/Nav'
 import { Dashboard, type DashboardView } from './components/Dashboard'
 import { ChoresPage, type ChoreSelection } from './components/ChoresPage'
 import { PeoplePage } from './components/PeoplePage'
 import { SIGN_OUT_URL, SettingsPage } from './components/SettingsPage'
+import { InviteBanner } from './components/Household'
 import { PrintPanel, type PrintOptions } from './components/PrintPanel'
 import { PrintRoster, type PrintLayout } from './components/PrintRoster'
 import { AssignSheet, type AssignChoice, type AssignTarget } from './components/AssignSheet'
@@ -37,6 +42,13 @@ function useIsMobile(): boolean {
     return () => mq.removeEventListener('change', onChange)
   }, [])
   return mobile
+}
+
+/** The local roster and queued ops belong to the previous household: drop them and boot again. */
+function reloadIntoNewHousehold(): void {
+  resetLocalHousehold()
+  clearStored()
+  location.reload()
 }
 
 export default function App() {
@@ -67,6 +79,7 @@ export default function App() {
   const [sync] = useState(() => new SyncClient())
   const [me, setMe] = useState<Me | null>(null)
   const [accessError, setAccessError] = useState('')
+  const [inviteBannerDismissed, setInviteBannerDismissed] = useState(false)
   const [deviceCount, setDeviceCount] = useState<number | null>(null)
   const [calToken, setCalToken] = useState<string | null>(null)
   const [calError, setCalError] = useState('')
@@ -76,7 +89,13 @@ export default function App() {
   useEffect(() => {
     clearLegacyShareConfig()
     fetchMe()
-      .then(setMe)
+      .then((signedIn) => {
+        if (!rememberHousehold(signedIn.household.id)) {
+          reloadIntoNewHousehold()
+          return
+        }
+        setMe(signedIn)
+      })
       .catch((err: unknown) => {
         if (err instanceof SyncRequestError && err.status === 403) {
           setAccessError('This account is not in the household. Sign out and sign in with a household account.')
@@ -96,6 +115,7 @@ export default function App() {
       onRemoteOp: (op: Op) => setState((s) => applyOp(s, op)),
       onSnapshot: (remote, pending) => setState(pending.reduce(applyOp, remote)),
       onPresence: setDeviceCount,
+      onHouseholdChanged: reloadIntoNewHousehold,
     })
     return () => {
       sync.stop()
@@ -110,6 +130,28 @@ export default function App() {
     } catch {
       setCalError('Could not enable the calendar feed. Check your connection and try again.')
     }
+  }
+
+  const joinHousehold = async (invite: InviteForMe) => {
+    if (!me) return
+    const { household } = me
+    if (
+      household.members.length === 1 &&
+      !confirm(
+        `You are the only member of ${household.name}. Its roster stays behind and nobody will see it. Join ${invite.householdName}?`,
+      )
+    ) {
+      return
+    }
+    await acceptInvite(invite.id)
+    reloadIntoNewHousehold()
+  }
+
+  const leaveCurrentHousehold = async () => {
+    if (!me) return
+    if (!confirm(`Leave ${me.household.name}? You get a new, empty household. The roster stays with the others.`)) return
+    await leaveHousehold()
+    reloadIntoNewHousehold()
   }
 
   const feedUrlFor = (personId: string | undefined, tasks: boolean): string | null =>
@@ -215,6 +257,9 @@ export default function App() {
       onReset={resetAll}
       importError={importError}
       me={me}
+      onMeChange={setMe}
+      onJoinHousehold={joinHousehold}
+      onLeaveHousehold={leaveCurrentHousehold}
       deviceCount={deviceCount}
       onExportIcs={(personId, tasks) => (tasks ? exportTasksIcs(state, personId) : exportIcs(state, personId))}
       calError={calError}
@@ -239,11 +284,14 @@ export default function App() {
     />
   )
 
+  const bannerInvite = inviteBannerDismissed ? undefined : me?.invitesForMe[0]
   const banner = accessError ? (
     <div className="app-banner app-banner-error no-print" role="alert">
       {accessError}
       <a className="btn btn-ghost" href={SIGN_OUT_URL}>Sign out</a>
     </div>
+  ) : bannerInvite ? (
+    <InviteBanner invite={bannerInvite} onJoin={joinHousehold} onDismiss={() => setInviteBannerDismissed(true)} />
   ) : null
 
   return (

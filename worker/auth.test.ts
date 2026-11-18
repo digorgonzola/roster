@@ -7,15 +7,12 @@ import { AuthError } from './errors'
 
 const TEAM_DOMAIN = 'https://household.cloudflareaccess.com'
 const AUD = 'a'.repeat(64)
-const ROOM_ID = '00000000-0000-4000-8000-000000000000'
 
 const config: Config = parseConfig({
   ENVIRONMENT: 'production',
   ACCESS_TEAM_DOMAIN: TEAM_DOMAIN,
   ACCESS_AUD: AUD,
-  HOUSEHOLD_EMAILS: 'one@example.com,two@example.com',
-  HOUSEHOLD_ROOM_ID: ROOM_ID,
-} as Env)
+} as unknown as Env)
 
 let privateKey: CryptoKey
 let getKey: JWTVerifyGetKey
@@ -53,7 +50,7 @@ async function authStatus(run: Promise<unknown>): Promise<number> {
 }
 
 describe('authenticate', () => {
-  it('accepts a valid Access token for a household member', async () => {
+  it('accepts a valid Access token and lowercases the email', async () => {
     const token = await sign({ email: 'One@Example.com' })
     expect(await authenticate(request(token), config, getKey)).toEqual({ email: 'one@example.com' })
   })
@@ -76,18 +73,21 @@ describe('authenticate', () => {
     expect(await authStatus(authenticate(request('not.a.jwt'), config, getKey))).toBe(401)
   })
 
-  it('rejects a valid token outside the household with 403', async () => {
+  it('accepts any email the Access policy let in', async () => {
     const token = await sign({ email: 'stranger@example.com' })
+    expect(await authenticate(request(token), config, getKey)).toEqual({ email: 'stranger@example.com' })
+  })
+
+  it('rejects a valid token without an email with 403', async () => {
+    const token = await sign({ common_name: 'service-token' })
     expect(await authStatus(authenticate(request(token), config, getKey))).toBe(403)
   })
 
   it('uses the dev identity without a token in development', async () => {
     const devConfig = parseConfig({
       ENVIRONMENT: 'development',
-      HOUSEHOLD_EMAILS: 'one@example.com',
-      HOUSEHOLD_ROOM_ID: ROOM_ID,
       DEV_IDENTITY_EMAIL: 'one@example.com',
-    } as Env)
+    } as unknown as Env)
     expect(await authenticate(request(), devConfig)).toEqual({ email: 'one@example.com' })
   })
 })
