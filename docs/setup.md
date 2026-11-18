@@ -65,8 +65,15 @@ warns because the config also defines `env.preview`.
   - **Preview:** the repository secret. Workers Scripts Write on the
     `roster-preview` Worker only, and D1 Write for the account.
   - **Production:** a secret in the `production` environment, which only
-    `main` can use. Workers Scripts Write on the `roster` Worker only, and D1
-    Write for the account. It overrides the repository secret in `deploy.yml`.
+    `main` can use. It overrides the repository secret in `deploy.yml`. It has:
+    - Individual Workers Editor and Workers Scripts Write on the `roster`
+      Worker only.
+    - Workers Routes Write on the `crunchyapple.xyz` zone, for the custom
+      domain. Without it, or without Editor, `wrangler deploy` uploads the
+      code but fails on the custom domain.
+    - D1 Write for the account.
+  - Cloudflare documents these permissions under
+    [granular permissions with Wrangler](https://developers.cloudflare.com/workers/authorization/#use-granular-permissions-with-wrangler).
   - D1 Write cannot be limited to one database, so the preview token can
     write to the production database. It cannot change the production Worker.
   - If the production secret is missing, `deploy.yml` falls back to the
