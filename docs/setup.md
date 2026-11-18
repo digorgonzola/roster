@@ -61,8 +61,17 @@ warns because the config also defines `env.preview`.
   additive, because the old Worker serves until the deploy finishes.
 - **Preview:** `.github/workflows/deploy-preview.yml` applies the preview
   migrations, then deploys `roster-preview`, for each ready PR.
-- Both use the repository secret `CLOUDFLARE_API_TOKEN`. It needs Workers
-  Scripts:Edit and D1:Edit.
+- Two Cloudflare API tokens, both named `CLOUDFLARE_API_TOKEN` in GitHub:
+  - **Preview:** the repository secret. Workers Scripts Write on the
+    `roster-preview` Worker only, and D1 Write for the account.
+  - **Production:** a secret in the `production` environment, which only
+    `main` can use. Workers Scripts Write on the `roster` Worker only, and D1
+    Write for the account. It overrides the repository secret in `deploy.yml`.
+  - D1 Write cannot be limited to one database, so the preview token can
+    write to the production database. It cannot change the production Worker.
+  - If the production secret is missing, `deploy.yml` falls back to the
+    preview token: migrations apply, then the deploy fails. Migrations are
+    additive, so the old Worker keeps working.
 - **Workers Builds must stay disconnected** from the `roster` Worker
   (Workers → roster → Settings → Build). It cannot run migrations first, and
   with it connected, both would deploy.
