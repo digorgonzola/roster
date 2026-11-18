@@ -1,6 +1,6 @@
 import type { AppState, Chore, DayIndex, TimeOfDay } from './types'
 import { parseYmd, toDayIndex } from './week'
-import { nextRotationOffset } from './schedule'
+import { withRotationOffset } from './schedule'
 
 /**
  * Every roster mutation, as a plain serializable intent. The same reducer runs
@@ -125,13 +125,6 @@ export function applyOp(s: AppState, op: Op): AppState {
     case 'replaceState':
       return op.state
   }
-}
-
-/** A rotating chore keeps its frozen offset; one without gets the next free slot. */
-function withRotationOffset(chore: Chore, existing: Chore[]): Chore {
-  if (chore.assignment.mode !== 'rotate' || chore.rotationOffset !== undefined) return chore
-  const others = existing.filter((c) => c.id !== chore.id)
-  return { ...chore, rotationOffset: nextRotationOffset(others, chore) }
 }
 
 /** Remove a deleted person from a chore's assignment, whatever its mode. */
