@@ -166,7 +166,8 @@ function expandWeek(state: AppState, weekStart: Date): WeekEntry[] {
  * The entries for one occurrence of a chore: one per person for an 'everyone'
  * chore, otherwise a single entry for whoever's turn it is.
  *
- * An 'everyone' chore leaves out people who are unavailable at its time of day,
+ * An 'everyone' chore with nobody listed gives a single unassigned entry. It
+ * leaves out people who are unavailable at its time of day,
  * the same way a rotation skips them, rather than handing them an occurrence
  * they can't do.
  */
@@ -177,8 +178,11 @@ function occurrence(chore: Chore, date: Date, people: Person[], offset: number):
     return [{ ...base, assignee: assigneeForDate(chore, date, people, offset) }]
   }
   const ids = chore.assignment.personIds
-  return people
-    .filter((p) => ids.includes(p.id) && !isUnavailable(p, dayIndex, chore.timeOfDay))
+  const listed = people.filter((p) => ids.includes(p.id))
+  // Nobody listed (or all deleted): show it unassigned so it can be picked up.
+  if (listed.length === 0) return [{ ...base, assignee: null }]
+  return listed
+    .filter((p) => !isUnavailable(p, dayIndex, chore.timeOfDay))
     .map((p) => ({ ...base, assignee: p }))
 }
 

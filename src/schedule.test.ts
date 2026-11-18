@@ -234,6 +234,14 @@ describe("'everyone' chores", () => {
     expect(new Set(entries.map((e) => e.assignee?.id))).toEqual(new Set(['p1']))
   })
 
+  it('shows one unassigned entry per occurrence when nobody listed exists', () => {
+    for (const ids of [[], ['gone']]) {
+      const entries = entriesForWeek(state([everyone(ids)]), weekStart)
+      expect(entries).toHaveLength(7)
+      expect(entries.every((e) => e.assignee === null)).toBe(true)
+    }
+  })
+
   it('keys completion per person, and other chores by id alone', () => {
     const [bed] = entriesForWeek(state([everyone(['p2'])]), weekStart)
     expect(doneKey(bed)).toBe('bed:p2')
