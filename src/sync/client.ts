@@ -2,11 +2,14 @@ import type { AppState } from '../types'
 import type { Op } from '../ops'
 import {
   CALENDAR_TOKEN_PARAM,
-  ROSTER_KEY_HEADER,
-  type CalendarEnableRequest,
+  HOUSEHOLD_CHANGED,
+  HOUSEHOLD_HEADER,
+  type CalendarFeedResponse,
   type ClientMessage,
-  type CreateRoomResponse,
-  type InitRequest,
+  type ErrorResponse,
+  type HouseholdPatch,
+  type InviteRequest,
+  type Me,
   type OpRequest,
   type OpResponse,
   type ServerMessage,
@@ -14,15 +17,12 @@ import {
 } from './protocol'
 
 /**
- * Client side of roster sharing.
+ * Client side of the household roster.
  *
- * The share credential is a capability: the room id plus a random 128-bit
- * key. Both travel only in the URL *fragment* (`#/r/<roomId>/<key>`), which
- * browsers never send to servers, and after the first open they live in
- * localStorage. Requests carry the room id in the path and the key in the
- * `X-Roster-Key` header.
+ * Cloudflare Access signs each member in, and its cookie rides along on every
+ * same-origin request, so the client holds no credential of its own.
  *
- * Data flow while shared:
+ * Data flow:
  * - Local edits apply optimistically, join a persisted pending queue, and
  *   flush to the room over HTTP in order. The queue survives a reload, so
  *   offline edits replay when the connection returns.
@@ -31,16 +31,14 @@ import {
  * - While the socket is down, a slow poll (30s) keeps devices converging.
  */
 
-const SHARE_KEY = 'roster.share.v1'
 const PENDING_KEY = 'roster.pending.v1'
+/** The household the local copy and pending queue belong to. */
+const HOUSEHOLD_KEY = 'roster.household.v1'
+/** Share-link credentials from before sign-in. Removed so no device keeps an unused secret. */
+const LEGACY_KEYS = ['roster.share.v1', 'roster.cal.v1']
 const FALLBACK_POLL_MS = 30_000
 const BACKOFF_MIN_MS = 1_000
 const BACKOFF_MAX_MS = 30_000
-
-export interface ShareConfig {
-  roomId: string
-  key: string
-}
 
 export interface SyncHandlers {
   /** A remote op to apply on top of current local state. */
@@ -55,96 +53,131 @@ export interface SyncHandlers {
    * down, when the count is unknown.
    */
   onPresence?: (devices: number | null) => void
+  /**
+   * The person moved to another household (on another device). The local copy
+   * and pending ops belong to the old one: drop them and start again.
+   */
+  onHouseholdChanged: () => void
 }
 
-export function loadShareConfig(): ShareConfig | null {
+export function clearLegacyShareConfig(): void {
   try {
-    const raw = localStorage.getItem(SHARE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as ShareConfig
-    if (typeof parsed.roomId === 'string' && typeof parsed.key === 'string') return parsed
+    for (const key of LEGACY_KEYS) localStorage.removeItem(key)
   } catch {
-    // corrupt config: treat as not sharing
+    // storage disabled: nothing stored to clear
   }
-  return null
 }
 
-function saveShareConfig(config: ShareConfig): void {
-  localStorage.setItem(SHARE_KEY, JSON.stringify(config))
+function storedHousehold(): string | null {
+  try {
+    return localStorage.getItem(HOUSEHOLD_KEY)
+  } catch {
+    return null
+  }
 }
-
-export function clearShareConfig(): void {
-  localStorage.removeItem(SHARE_KEY)
-  localStorage.removeItem(PENDING_KEY)
-  localStorage.removeItem(CAL_ENABLED_KEY)
-}
-
-export function shareLink(config: ShareConfig): string {
-  return `${location.origin}/#/r/${config.roomId}/${config.key}`
-}
-
-const CAL_ENABLED_KEY = 'roster.cal.v1'
 
 /**
- * The read-only feed token, derived from the room key so every device produces
- * the same feed URL without extra round-trips. It is a one-way hash of the key,
- * so it never exposes the key and cannot be replayed as a write credential.
+ * Record the household from /api/me. Returns false when the device holds
+ * another household's copy: the caller must reset and reload.
  */
-export function deriveCalToken(key: string): Promise<string> {
-  return sha256Hex(`${key}:calendar`)
+export function rememberHousehold(householdId: string): boolean {
+  const stored = storedHousehold()
+  if (stored !== null && stored !== householdId) return false
+  try {
+    localStorage.setItem(HOUSEHOLD_KEY, householdId)
+  } catch {
+    // storage disabled: ops are sent without the household guard
+  }
+  return true
 }
 
-/** Whether this device has enabled the calendar feed (UI hint only). */
-export function calendarEnabled(): boolean {
-  return localStorage.getItem(CAL_ENABLED_KEY) === '1'
+/** Forget the local household, its pending ops, and the household it belonged to. */
+export function resetLocalHousehold(): void {
+  try {
+    localStorage.removeItem(PENDING_KEY)
+    localStorage.removeItem(HOUSEHOLD_KEY)
+  } catch {
+    // storage disabled: nothing stored to clear
+  }
 }
 
-/** Register the feed token hash with the room, then remember it locally. */
-export async function enableCalendarFeed(config: ShareConfig): Promise<void> {
-  const token = await deriveCalToken(config.key)
-  const body: CalendarEnableRequest = { tokenHash: await sha256Hex(token) }
-  await expectOk(
-    await fetch(`/api/rooms/${config.roomId}/calendar`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', [ROSTER_KEY_HEADER]: config.key },
-      body: JSON.stringify(body),
-    }),
-  )
-  localStorage.setItem(CAL_ENABLED_KEY, '1')
+/** The signed-in person, their household and the invites waiting for them. */
+export async function fetchMe(): Promise<Me> {
+  return readMe(await fetch('/api/me'))
+}
+
+async function readMe(res: Response): Promise<Me> {
+  return (await (await expectOk(res)).json()) as Me
+}
+
+function sendJson(method: string, path: string, body?: unknown): Promise<Response> {
+  return fetch(path, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  })
+}
+
+export async function renameHousehold(name: string): Promise<Me> {
+  return readMe(await sendJson('PATCH', '/api/household', { name } satisfies HouseholdPatch))
+}
+
+export async function inviteMember(email: string): Promise<Me> {
+  return readMe(await sendJson('POST', '/api/household/invites', { email } satisfies InviteRequest))
+}
+
+export async function cancelInvite(inviteId: string): Promise<Me> {
+  return readMe(await sendJson('DELETE', `/api/household/invites/${encodeURIComponent(inviteId)}`))
+}
+
+/** Moves the person to the inviting household. Reset and reload afterwards. */
+export async function acceptInvite(inviteId: string): Promise<Me> {
+  return readMe(await sendJson('POST', `/api/household/invites/${encodeURIComponent(inviteId)}/accept`))
+}
+
+/** Moves the person to a new household of one. Reset and reload afterwards. */
+export async function leaveHousehold(): Promise<Me> {
+  return readMe(await sendJson('POST', '/api/household/leave'))
+}
+
+/** The calendar feed token, or null until a member enables the feed. */
+export async function fetchCalendarToken(): Promise<string | null> {
+  const res = await expectOk(await fetch('/api/calendar'))
+  return ((await res.json()) as CalendarFeedResponse).token
+}
+
+/** Create the household's feed token (or get the existing one). */
+export async function enableCalendarFeed(): Promise<string> {
+  const res = await expectOk(await sendJson('POST', '/api/calendar'))
+  const { token } = (await res.json()) as CalendarFeedResponse
+  if (token === null) throw new Error('calendar feed token missing')
+  return token
 }
 
 /** The subscribable .ics URL for a person (or the whole household). */
-export function calendarFeedUrl(
-  config: ShareConfig,
-  token: string,
-  opts: { personId?: string; tasks?: boolean } = {},
-): string {
-  const u = new URL(`${location.origin}/api/rooms/${config.roomId}/calendar.ics`)
+export function calendarFeedUrl(token: string, opts: { personId?: string; tasks?: boolean } = {}): string {
+  const u = new URL(`${location.origin}/api/calendar.ics`)
   u.searchParams.set(CALENDAR_TOKEN_PARAM, token)
   if (opts.personId) u.searchParams.set('person', opts.personId)
   if (opts.tasks) u.searchParams.set('kind', 'tasks')
   return u.toString()
 }
 
-/** Parse `#/r/<roomId>/<key>` from a location hash. */
-export function parseShareLink(hash: string): ShareConfig | null {
-  const m = hash.match(/^#\/r\/([0-9a-f-]{36})\/([A-Za-z0-9_-]{16,64})$/)
-  return m ? { roomId: m[1], key: m[2] } : null
-}
-
-function newRoomKey(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+/** A non-2xx response. `code` is the server's error code, when it sent one. */
+export class SyncRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(`sync request failed: ${status}${code ? ` ${code}` : ''}`)
+    this.name = 'SyncRequestError'
+  }
 }
 
 async function expectOk(res: Response): Promise<Response> {
-  if (!res.ok) throw new Error(`sync request failed: ${res.status}`)
-  return res
+  if (res.ok) return res
+  const body = (await res.json().catch(() => null)) as ErrorResponse | null
+  throw new SyncRequestError(res.status, typeof body?.error === 'string' ? body.error : null)
 }
 
 function loadPending(): Op[] {
@@ -167,6 +200,11 @@ function savePending(pending: Op[]): void {
   }
 }
 
+function householdHeader(): Record<string, string> {
+  const householdId = storedHousehold()
+  return householdId ? { [HOUSEHOLD_HEADER]: householdId } : {}
+}
+
 export class SyncClient {
   private rev = 0
   private pending: Op[] = loadPending()
@@ -179,37 +217,6 @@ export class SyncClient {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
-  constructor(readonly config: ShareConfig) {}
-
-  /** Create a room seeded with `state`, persist the credential, return the client. */
-  static async create(state: AppState): Promise<SyncClient> {
-    const created = await expectOk(await fetch('/api/rooms', { method: 'POST' }))
-    const { roomId } = (await created.json()) as CreateRoomResponse
-    const config: ShareConfig = { roomId, key: newRoomKey() }
-
-    const body: InitRequest = { keyHash: await sha256Hex(config.key), state }
-    await expectOk(
-      await fetch(`/api/rooms/${config.roomId}/init`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      }),
-    )
-    saveShareConfig(config)
-    const client = new SyncClient(config)
-    client.rev = 1
-    return client
-  }
-
-  /** Join an existing room from a share link and persist the credential. */
-  static async join(config: ShareConfig): Promise<{ client: SyncClient; snapshot: Snapshot }> {
-    const client = new SyncClient(config)
-    const snapshot = await client.fetchSnapshot()
-    client.rev = snapshot.rev
-    saveShareConfig(config)
-    return { client, snapshot }
-  }
-
   /** Wire up callbacks, open the push channel, and flush any queued ops. */
   start(handlers: SyncHandlers): void {
     this.handlers = handlers
@@ -217,6 +224,7 @@ export class SyncClient {
     this.connect()
     this.setPolling(true)
     void this.flush()
+    void this.refreshSnapshot().catch(() => {})
   }
 
   /** Close the channel and stop timers. The pending queue stays persisted. */
@@ -252,8 +260,11 @@ export class SyncClient {
         savePending(this.pending)
       }
       if (sawStale) await this.refreshSnapshot()
-    } catch {
-      // offline or unauthorized: keep the queue, retry on reconnect/poll
+    } catch (err) {
+      if (err instanceof SyncRequestError && err.code === HOUSEHOLD_CHANGED) {
+        this.handlers?.onHouseholdChanged()
+      }
+      // otherwise offline or signed out: keep the queue, retry on reconnect/poll
     } finally {
       this.flushing = false
     }
@@ -271,12 +282,12 @@ export class SyncClient {
   private connect(): void {
     if (this.stopped) return
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${scheme}://${location.host}/api/rooms/${this.config.roomId}/ws`)
+    const ws = new WebSocket(`${scheme}://${location.host}/api/ws`)
     this.ws = ws
 
     ws.onopen = () => {
-      const auth: ClientMessage = { t: 'auth', key: this.config.key }
-      ws.send(JSON.stringify(auth))
+      const hello: ClientMessage = { t: 'hello' }
+      ws.send(JSON.stringify(hello))
     }
 
     ws.onmessage = (event) => {
@@ -339,23 +350,16 @@ export class SyncClient {
   // ---- HTTP ------------------------------------------------------------
 
   async fetchSnapshot(): Promise<Snapshot> {
-    const res = await expectOk(
-      await fetch(`/api/rooms/${this.config.roomId}/state`, {
-        headers: { [ROSTER_KEY_HEADER]: this.config.key },
-      }),
-    )
+    const res = await expectOk(await fetch('/api/state'))
     return (await res.json()) as Snapshot
   }
 
   private async send(op: Op, baseRev: number): Promise<OpResponse> {
     const body: OpRequest = { baseRev, op }
     const res = await expectOk(
-      await fetch(`/api/rooms/${this.config.roomId}/op`, {
+      await fetch('/api/op', {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          [ROSTER_KEY_HEADER]: this.config.key,
-        },
+        headers: { 'content-type': 'application/json', ...householdHeader() },
         body: JSON.stringify(body),
       }),
     )

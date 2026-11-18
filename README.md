@@ -4,7 +4,7 @@
 [![Workflow Security](https://github.com/digorgonzola/roster/actions/workflows/zizmor.yml/badge.svg?branch=main)](https://github.com/digorgonzola/roster/actions/workflows/zizmor.yml)
 [![Deployment](https://img.shields.io/badge/deploy-Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)](https://github.com/digorgonzola/roster/deployments)
 
-A small, no-backend web app to run a family chore roster: add people and chores,
+A small web app to run a family chore roster: add people and chores,
 schedule them **weekly** or as **one-off** irregular tasks, assign them **manually**
 or **auto-rotate** them across people each week, and print a **grayscale-safe A4**
 roster for the fridge.
@@ -16,7 +16,9 @@ pnpm install
 pnpm dev
 ```
 
-Open the printed local URL (usually http://localhost:5173).
+Open the printed local URL (usually http://localhost:5173). The app needs the
+API too: copy `.dev.vars.example` to `.dev.vars` and run `pnpm dev:worker` in a
+second terminal. See [docs/setup.md](docs/setup.md).
 
 Build a static copy:
 
@@ -57,21 +59,25 @@ every run. In CI, install with `pnpm install --frozen-lockfile`.
 - **Print roster** — choose **Weekly grid** or **Per-person cards**, then
   *Print / Save PDF*. Layout is A4 with tick boxes and a person key.
 - **Settings** — pick the week start day, rename the time-of-day row headings,
-  share the roster between devices, and export / import / reset the data.
+  manage your household, and export / import / reset the data.
 
-## Data & backup
+## Sign-in, households & sync
 
-Everything is stored in your browser's `localStorage`. Use **Export JSON** (on
-the Settings page) to back up or move the roster to another device, and
-**Import JSON** to restore it.
+People sign in with Google through Cloudflare Access. Each person belongs to
+one **household**, and everyone in a household sees and edits the same roster,
+which lives in a Cloudflare Durable Object. Each browser keeps a copy so the
+app works offline, and edits sync when the connection returns. Losing a
+browser loses nothing: sign in again.
 
-## Sharing
+In **Settings → Household**, rename the household, invite someone by email,
+or leave. A new person gets a household of their own until they accept an
+invite. Everyone also needs to be on the Access sign-in list
+([docs/setup.md](docs/setup.md)).
 
-**Share roster** (on the Settings page) creates a private link that keeps the
-roster in sync between devices. The link holds a random secret, and anyone
-with the link can view and edit that one roster. Shared rosters live in a
-Cloudflare Durable Object. **Stop syncing** disconnects the device and keeps
-its local copy. Without a share, the app never talks to a server.
+## Backup
+
+Use **Export JSON** (on the Settings page) for your own copy of the roster, and
+**Import JSON** to restore it. An import replaces the roster for everyone.
 
 ## Calendar & tasks
 
@@ -88,16 +94,17 @@ Two ways to get them across:
 
 - **Download `.ics`** — a one-off file covering the next 8 weeks. No sharing
   needed; works for both formats.
-- **Subscribe to a live feed** — available for **Calendar** once **Family sync**
-  is on. **Enable live feed** gives a link your calendar app polls, so chores
-  stay current as they rotate and change. The feed serves a rolling ~13-week
-  window and is **read-only**: its token is derived from the share key by a
-  one-way hash, so it can read the calendar but never edit the roster, and every
-  shared device derives the same feed URL.
+- **Subscribe to a live feed** — available for **Calendar**. **Enable live
+  feed** gives a link your calendar app polls, so chores stay current as they
+  rotate and change. The feed serves a rolling ~13-week window and is
+  **read-only**: its token can read the calendar but never edit the roster.
+  Calendar apps cannot sign in, so the feed path skips Access and the token is
+  the only credential. Every member sees the same feed URL.
 
 ## Tech
 
-Vite + React + TypeScript, plain CSS. No accounts, no tracking. A small
-Cloudflare Worker stores shared rosters, only for people who opt in to
-sharing. For local development run `pnpm dev` (app) and `pnpm dev:worker`
-(API) side by side.
+Vite + React + TypeScript, plain CSS. No tracking. A small Cloudflare Worker
+checks the Access sign-in, keeps households and invites in D1, and stores each
+household's roster in a Durable Object.
+For local development run `pnpm dev` (app) and `pnpm dev:worker` (API) side by
+side.

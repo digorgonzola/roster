@@ -1,25 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppState, Chore, DayIndex, Person, TimeOfDay } from './types'
-import { load, save, exportJson, exportIcs, exportTasksIcs, importJson, clearStored, seedState } from './storage'
+import { load, save, exportJson, exportIcs, exportTasksIcs, importJson, clearStored } from './storage'
+import { seedState } from './seed'
 import { newId } from './ids'
 import { applyOp, type Op } from './ops'
 import {
   SyncClient,
-  calendarEnabled,
+  SyncRequestError,
+  acceptInvite,
   calendarFeedUrl,
-  clearShareConfig,
-  deriveCalToken,
+  clearLegacyShareConfig,
   enableCalendarFeed,
-  loadShareConfig,
-  parseShareLink,
-  shareLink,
+  fetchCalendarToken,
+  fetchMe,
+  leaveHousehold,
+  rememberHousehold,
+  resetLocalHousehold,
 } from './sync/client'
+import type { InviteForMe, Me } from './sync/protocol'
 import { addDays, startOfWeek, toDayIndex } from './week'
 import { Nav, type Page } from './components/Nav'
 import { Dashboard, type DashboardView } from './components/Dashboard'
 import { ChoresPage, type ChoreSelection } from './components/ChoresPage'
 import { PeoplePage } from './components/PeoplePage'
-import { SettingsPage } from './components/SettingsPage'
+import { SIGN_OUT_URL, SettingsPage } from './components/SettingsPage'
+import { InviteBanner } from './components/Household'
 import { PrintPanel, type PrintOptions } from './components/PrintPanel'
 import { PrintRoster, type PrintLayout } from './components/PrintRoster'
 import { AssignSheet, type AssignChoice, type AssignTarget } from './components/AssignSheet'
@@ -37,6 +42,13 @@ function useIsMobile(): boolean {
     return () => mq.removeEventListener('change', onChange)
   }, [])
   return mobile
+}
+
+/** The local roster and queued ops belong to the previous household: drop them and boot again. */
+function reloadIntoNewHousehold(): void {
+  resetLocalHousehold()
+  clearStored()
+  location.reload()
 }
 
 export default function App() {
@@ -63,45 +75,47 @@ export default function App() {
   const [focusCalendar, setFocusCalendar] = useState(false)
   const isMobile = useIsMobile()
 
-  // ---- Sharing ----
-  const [sync, setSync] = useState<SyncClient | null>(() => {
-    const config = loadShareConfig()
-    return config ? new SyncClient(config) : null
-  })
-  const [shareBusy, setShareBusy] = useState(false)
-  const [shareError, setShareError] = useState('')
+  // ---- Sync ----
+  const [sync] = useState(() => new SyncClient())
+  const [me, setMe] = useState<Me | null>(null)
+  const [accessError, setAccessError] = useState('')
+  const [inviteBannerDismissed, setInviteBannerDismissed] = useState(false)
   const [deviceCount, setDeviceCount] = useState<number | null>(null)
-  const [joining, setJoining] = useState(() => parseShareLink(location.hash) !== null)
-  const [joinError, setJoinError] = useState('')
-
-  // ---- Calendar feed (Phase 2) ----
-  const [calEnabled, setCalEnabled] = useState(() => calendarEnabled())
   const [calToken, setCalToken] = useState<string | null>(null)
   const [calError, setCalError] = useState('')
 
-  // On boot: join a share link if one is in the fragment. Runs once.
+  // On boot: who is signed in, and the feed token if a member enabled it.
+  // Offline is fine here: the roster runs from the local copy and syncs later.
   useEffect(() => {
-    const linkConfig = parseShareLink(location.hash)
-    if (!linkConfig) return
-    history.replaceState(null, '', location.pathname + location.search)
-    SyncClient.join(linkConfig)
-      .then(({ client, snapshot }) => {
-        setState(snapshot.state)
-        setSync(client)
+    clearLegacyShareConfig()
+    fetchMe()
+      .then((signedIn) => {
+        if (!rememberHousehold(signedIn.household.id)) {
+          reloadIntoNewHousehold()
+          return
+        }
+        setMe(signedIn)
       })
-      .catch(() => setJoinError('Could not open that share link. Ask for a new one.'))
-      .finally(() => setJoining(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch((err: unknown) => {
+        if (err instanceof SyncRequestError && err.status === 403) {
+          setAccessError('This account is not in the household. Sign out and sign in with a household account.')
+        } else {
+          console.warn('Could not load the signed-in member', err)
+        }
+      })
+    fetchCalendarToken()
+      .then(setCalToken)
+      .catch((err: unknown) => console.warn('Could not load the calendar feed token', err))
   }, [])
 
-  // While shared: the client pushes remote ops (WebSocket, with a slow poll
-  // as fallback) and delivers snapshots rebased over the pending queue.
+  // The client pushes remote ops (WebSocket, with a slow poll as fallback)
+  // and delivers snapshots rebased over the pending queue.
   useEffect(() => {
-    if (!sync) return
     sync.start({
       onRemoteOp: (op: Op) => setState((s) => applyOp(s, op)),
       onSnapshot: (remote, pending) => setState(pending.reduce(applyOp, remote)),
       onPresence: setDeviceCount,
+      onHouseholdChanged: reloadIntoNewHousehold,
     })
     return () => {
       sync.stop()
@@ -109,55 +123,39 @@ export default function App() {
     }
   }, [sync])
 
-  const startSharing = async () => {
-    setShareBusy(true)
-    setShareError('')
-    try {
-      setSync(await SyncClient.create(state))
-    } catch {
-      setShareError('Could not start sharing. Check your connection and try again.')
-    } finally {
-      setShareBusy(false)
-    }
-  }
-
-  const stopSharing = () => {
-    sync?.stop()
-    clearShareConfig()
-    setSync(null)
-    setCalEnabled(false)
-    setCalToken(null)
-  }
-
-  // Derive the feed token from the room key whenever sharing is active, so the
-  // subscribe URLs are ready to show the moment the feed is enabled.
-  useEffect(() => {
-    if (!sync) {
-      setCalToken(null)
-      return
-    }
-    let alive = true
-    void deriveCalToken(sync.config.key).then((t) => {
-      if (alive) setCalToken(t)
-    })
-    return () => {
-      alive = false
-    }
-  }, [sync])
-
   const enableCalendar = async () => {
-    if (!sync) return
     setCalError('')
     try {
-      await enableCalendarFeed(sync.config)
-      setCalEnabled(true)
+      setCalToken(await enableCalendarFeed())
     } catch {
       setCalError('Could not enable the calendar feed. Check your connection and try again.')
     }
   }
 
+  const joinHousehold = async (invite: InviteForMe) => {
+    if (!me) return
+    const { household } = me
+    if (
+      household.members.length === 1 &&
+      !confirm(
+        `You are the only member of ${household.name}. Its roster stays behind and nobody will see it. Join ${invite.householdName}?`,
+      )
+    ) {
+      return
+    }
+    await acceptInvite(invite.id)
+    reloadIntoNewHousehold()
+  }
+
+  const leaveCurrentHousehold = async () => {
+    if (!me) return
+    if (!confirm(`Leave ${me.household.name}? You get a new, empty household. The roster stays with the others.`)) return
+    await leaveHousehold()
+    reloadIntoNewHousehold()
+  }
+
   const feedUrlFor = (personId: string | undefined, tasks: boolean): string | null =>
-    sync && calToken ? calendarFeedUrl(sync.config, calToken, { personId, tasks }) : null
+    calToken ? calendarFeedUrl(calToken, { personId, tasks }) : null
 
   useEffect(() => { save(state) }, [state])
 
@@ -168,12 +166,12 @@ export default function App() {
 
   /**
    * Single write path: every mutation is an Op through the shared reducer,
-   * applied locally first (optimistic). When shared, the op joins the
-   * client's persisted queue and replays in order once the room is reachable.
+   * applied locally first (optimistic), then joins the client's persisted
+   * queue and replays in order once the room is reachable.
    */
   const dispatch = (op: Op) => {
     setState((s) => applyOp(s, op))
-    sync?.push(op)
+    sync.push(op)
   }
 
   // ---- People ----
@@ -206,7 +204,7 @@ export default function App() {
 
   // ---- Data ----
   const doImport = async (file: File) => {
-    if (sync && !confirm('This roster is shared. Importing replaces it for everyone. Continue?')) {
+    if (!confirm('Importing replaces the roster for everyone in the household. Continue?')) {
       return
     }
     try {
@@ -218,7 +216,7 @@ export default function App() {
   }
 
   const resetAll = () => {
-    if (confirm('Reset the roster to the starting example? This clears your saved data.')) {
+    if (confirm('Reset the roster to the starting example? This replaces it for everyone in the household.')) {
       clearStored()
       dispatch({ t: 'replaceState', state: seedState() })
     }
@@ -258,14 +256,12 @@ export default function App() {
       onImport={doImport}
       onReset={resetAll}
       importError={importError}
-      shareLink={sync ? shareLink(sync.config) : null}
-      shareBusy={shareBusy}
-      shareError={shareError}
+      me={me}
+      onMeChange={setMe}
+      onJoinHousehold={joinHousehold}
+      onLeaveHousehold={leaveCurrentHousehold}
       deviceCount={deviceCount}
-      onShare={() => void startSharing()}
-      onStopShare={stopSharing}
       onExportIcs={(personId, tasks) => (tasks ? exportTasksIcs(state, personId) : exportIcs(state, personId))}
-      calFeedEnabled={calEnabled}
       calError={calError}
       onEnableCalendar={() => void enableCalendar()}
       feedUrlFor={feedUrlFor}
@@ -288,13 +284,14 @@ export default function App() {
     />
   )
 
-  const banner = joining ? (
-    <div className="app-banner no-print" role="status">Joining shared roster…</div>
-  ) : joinError ? (
+  const bannerInvite = inviteBannerDismissed ? undefined : me?.invitesForMe[0]
+  const banner = accessError ? (
     <div className="app-banner app-banner-error no-print" role="alert">
-      {joinError}
-      <button className="btn btn-ghost" onClick={() => setJoinError('')}>Dismiss</button>
+      {accessError}
+      <a className="btn btn-ghost" href={SIGN_OUT_URL}>Sign out</a>
     </div>
+  ) : bannerInvite ? (
+    <InviteBanner invite={bannerInvite} onJoin={joinHousehold} onDismiss={() => setInviteBannerDismissed(true)} />
   ) : null
 
   return (

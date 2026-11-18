@@ -1,0 +1,13 @@
+# Copy to .dev.vars (gitignored) for `pnpm dev:worker`. Values here override
+# wrangler.jsonc "vars" in local development only.
+
+# Must be "development" for DEV_IDENTITY_EMAIL to be accepted.
+ENVIRONMENT=development
+
+# Optional, comma-separated: people who join the default household at first
+# sign-in. Anyone else gets a new household of one.
+HOUSEHOLD_EMAILS=you@example.com,partner@example.com
+
+# Skip Cloudflare Access locally and act as this person. Change it and restart
+# `pnpm dev:worker` to try invites between two people.
+DEV_IDENTITY_EMAIL=you@example.com

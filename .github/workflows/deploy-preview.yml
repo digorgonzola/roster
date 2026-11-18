@@ -78,6 +78,13 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # Migrations before code: the new Worker may query new tables.
+      - name: Apply preview D1 migrations
+        run: pnpm exec wrangler d1 migrations apply roster-preview --remote --env preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 16d819ae170d010e7f7e936b5dee359d
+
       # pnpm exec uses the lockfile-pinned wrangler, never a freshly fetched
       # one. Targets env.preview => Worker "roster-preview"; the production
       # Worker "roster" is not touched.
