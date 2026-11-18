@@ -25,7 +25,7 @@ export function weeklyOccursOn(s: WeeklySchedule, date: Date): boolean {
  * Since schema v2 the offset is frozen on the chore (`rotationOffset`) at
  * creation or migration, so reordering the chores array never reassigns
  * people. The dense fallback below only covers in-memory chores that have no
- * stored offset yet (e.g. the editor's rotate preview).
+ * stored offset yet.
  */
 type RotationGroup = 'daily' | 'weekly' | 'monthly'
 
@@ -60,6 +60,27 @@ export function nextRotationOffset(existing: Chore[], chore: Chore): number {
     if (offset !== undefined && offset >= next) next = offset + 1
   }
   return next
+}
+
+/**
+ * Freeze `chore`'s rotation offset before it is stored. An explicit offset
+ * wins. Otherwise an edit keeps the stored version's offset (the editor builds
+ * chores from scratch and never carries it), so renaming or tweaking a chore
+ * never reassigns people. A new chore, one that was not rotating, or one that
+ * moved to another rotation group gets the next free slot in its group.
+ */
+export function withRotationOffset(chore: Chore, existing: Chore[]): Chore {
+  if (chore.assignment.mode !== 'rotate' || chore.rotationOffset !== undefined) return chore
+  const prev = existing.find((c) => c.id === chore.id)
+  if (
+    prev?.assignment.mode === 'rotate' &&
+    prev.rotationOffset !== undefined &&
+    rotationGroup(prev) === rotationGroup(chore)
+  ) {
+    return { ...chore, rotationOffset: prev.rotationOffset }
+  }
+  const others = existing.filter((c) => c.id !== chore.id)
+  return { ...chore, rotationOffset: nextRotationOffset(others, chore) }
 }
 
 /**

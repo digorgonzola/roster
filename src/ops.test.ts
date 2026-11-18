@@ -76,6 +76,73 @@ describe('applyOp', () => {
     expect(s.chores[0].rotationOffset).toBe(4)
   })
 
+  it('saveChore keeps the stored offset when an edit arrives without one', () => {
+    let s = base()
+    const rotate: Chore['assignment'] = { mode: 'rotate', personIds: ['p1', 'p2'] }
+    s.chores = [
+      chore({ id: 'c1', assignment: rotate, rotationOffset: 0 }),
+      chore({ id: 'c2', assignment: rotate, rotationOffset: 1 }),
+    ]
+    // The chore editor rebuilds the chore from its draft, so the offset is missing.
+    s = applyOp(s, { t: 'saveChore', chore: chore({ id: 'c1', name: 'Renamed', assignment: rotate }) })
+    expect(s.chores.map((c) => c.rotationOffset)).toEqual([0, 1])
+  })
+
+  it('saveChore re-mints the offset when a chore rejoins or changes rotation group', () => {
+    let s = base()
+    const rotate: Chore['assignment'] = { mode: 'rotate', personIds: ['p1', 'p2'] }
+    s.chores = [
+      chore({ id: 'c1', assignment: rotate, rotationOffset: 0 }),
+      chore({ id: 'c2', assignment: rotate, rotationOffset: 1 }),
+    ]
+    s = applyOp(s, { t: 'saveChore', chore: chore({ id: 'c1', assignment: { mode: 'manual', personId: 'p1' } }) })
+    s = applyOp(s, { t: 'saveChore', chore: chore({ id: 'c1', assignment: rotate }) })
+    expect(s.chores[0].rotationOffset).toBe(2)
+
+    // Daily rotations number their offsets apart from weekly ones.
+    s = applyOp(s, { t: 'saveChore', chore: chore({ id: 'c2', assignment: { mode: 'rotate', personIds: ['p1', 'p2'], period: 'daily' } }) })
+    expect(s.chores[1].rotationOffset).toBe(0)
+
+    // So do monthly chores, whatever their advance period.
+    s = applyOp(s, {
+      t: 'saveChore',
+      chore: chore({ id: 'c1', schedule: { kind: 'monthly', weekday: 5, nth: 1 }, assignment: rotate }),
+    })
+    expect(s.chores[0].rotationOffset).toBe(0)
+  })
+
+  it('assign rotate re-mints a stale offset from another group', () => {
+    let s = base()
+    s.chores = [
+      chore({ id: 'c1', assignment: { mode: 'rotate', period: 'daily', personIds: ['p1', 'p2'] }, rotationOffset: 0 }),
+      chore({ id: 'c2', assignment: { mode: 'rotate', period: 'weekly', personIds: ['p1', 'p2'] }, rotationOffset: 0 }),
+    ]
+    s = applyOp(s, { t: 'assign', choreId: 'c1', date: '2026-08-03', choice: 'rotate' })
+    expect(s.chores[0].rotationOffset).toBe(1)
+  })
+
+  it('assign drops the offset of a chore that stops rotating', () => {
+    let s = base()
+    const rotate: Chore['assignment'] = { mode: 'rotate', period: 'weekly', personIds: ['p1', 'p2'] }
+    s.chores = [chore({ id: 'c1', assignment: rotate, rotationOffset: 0 })]
+    s = applyOp(s, { t: 'assign', choreId: 'c1', date: '2026-08-03', choice: 'p1' })
+    expect(s.chores[0].rotationOffset).toBeUndefined()
+
+    // A chore that starts rotating meanwhile takes slot 0, so c1 must not reclaim it.
+    s = applyOp(s, { t: 'saveChore', chore: chore({ id: 'c3', assignment: rotate }) })
+    s = applyOp(s, { t: 'assign', choreId: 'c1', date: '2026-08-03', choice: 'rotate' })
+    expect(s.chores.map((c) => c.rotationOffset)).toEqual([1, 0])
+  })
+
+  it('assign rotate on a chore already rotating weekly keeps its offset', () => {
+    let s = base()
+    s.chores = [
+      chore({ id: 'c1', assignment: { mode: 'rotate', period: 'weekly', personIds: ['p1'] }, rotationOffset: 3 }),
+    ]
+    s = applyOp(s, { t: 'assign', choreId: 'c1', date: '2026-08-03', choice: 'rotate' })
+    expect(s.chores[0].rotationOffset).toBe(3)
+  })
+
   it('deleteChore removes its completion history', () => {
     let s = base()
     s.chores = [chore({ id: 'c1' }), chore({ id: 'c2' })]

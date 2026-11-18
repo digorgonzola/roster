@@ -3,7 +3,7 @@ import { Plus, X } from 'lucide-react'
 import type { Chore, DayIndex, Effort, MonthlyNth, Person, TimeOfDay } from '../types'
 import { DAY_NAMES, DAY_NAMES_LONG, addDays, parseYmd, toDayIndex, weekNumber, weeklyInterval, ymd } from '../week'
 import { isUnavailable } from '../availability'
-import { rotationOffsets, weeklyOccursOn } from '../schedule'
+import { weeklyOccursOn, withRotationOffset } from '../schedule'
 import { assigneeForDate } from '../rotation'
 import { TIME_SLOTS, slotLabel } from '../timeofday'
 import { assigneeTag, choreRuleSummary, needsPerson } from '../labels'
@@ -285,6 +285,7 @@ export function ChoresPage({ chores, people, weekStart, timeOfDayLabels, selecti
               weekStart={weekStart}
               timeOfDayLabels={timeOfDayLabels}
               isNew={selection === 'new'}
+              choreId={editingId ?? undefined}
               editingName={editingChore?.name}
               error={error}
               onSubmit={submit}
@@ -308,6 +309,8 @@ interface EditorProps {
   weekStart: Date
   timeOfDayLabels?: Partial<Record<TimeOfDay, string>>
   isNew: boolean
+  /** The stored chore being edited; absent while adding one. */
+  choreId?: string
   editingName?: string
   error: string
   onSubmit: () => void
@@ -317,7 +320,7 @@ interface EditorProps {
   onTogglePaused?: () => void
 }
 
-function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabels, isNew, editingName, error, onSubmit, onCancel, onDelete, onTogglePaused }: EditorProps) {
+function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabels, isNew, choreId, editingName, error, onSubmit, onCancel, onDelete, onTogglePaused }: EditorProps) {
   const toggleDay = (d: DayIndex) =>
     setDraft((prev) => prev && ({
       ...prev,
@@ -587,7 +590,7 @@ function Editor({ draft, set, setDraft, people, chores, weekStart, timeOfDayLabe
             {rotateClash && (
               <p className="text-muted editor-note">Skipped when unavailable: {rotateClash}.</p>
             )}
-            <RotatePreview draft={draft} chores={chores} people={people} weekStart={weekStart} />
+            <RotatePreview draft={draft} choreId={choreId} chores={chores} people={people} weekStart={weekStart} />
           </>
         ) : (
           <div className="field">
@@ -654,18 +657,19 @@ function OnOffSwitch({ on, label, onToggle }: { on: boolean; label: string; onTo
 }
 
 /** Computed rotation preview, from the same assigneeForDate the live roster uses. */
-function RotatePreview({ draft, chores, people, weekStart }: {
+function RotatePreview({ draft, choreId, chores, people, weekStart }: {
   draft: Draft
+  choreId?: string
   chores: Chore[]
   people: Person[]
   weekStart: Date
 }) {
   const preview = useMemo(() => {
     if (draft.rotateIds.length === 0) return []
-    // A stand-in id that no real chore uses keeps the offset map honest for new chores.
-    const id = 'rotate-preview'
-    const chore = buildChore({ ...draft, mode: 'rotate' }, id)
-    const offset = rotationOffsets([...chores, chore]).get(id) ?? 0
+    // Same offset the save will freeze; a stand-in id that no real chore uses
+    // gives a new chore the next free slot.
+    const chore = withRotationOffset(buildChore({ ...draft, mode: 'rotate' }, choreId ?? 'rotate-preview'), chores)
+    const offset = chore.rotationOffset ?? 0
     const dates: Date[] = []
     if (chore.schedule.kind !== 'weekly') {
       for (let k = 0; k < 4; k++) dates.push(addDays(weekStart, k * 7 + 3))
@@ -687,7 +691,7 @@ function RotatePreview({ draft, chores, people, weekStart }: {
       key: ymd(d),
       name: assigneeForDate(chore, d, people, offset)?.name ?? '—',
     }))
-  }, [draft, chores, people, weekStart])
+  }, [draft, choreId, chores, people, weekStart])
 
   if (preview.length === 0) return null
   return (
