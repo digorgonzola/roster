@@ -138,6 +138,10 @@
   .print-only { display: block !important; }
   .print-root { padding: 0; }
 
+  /* A full week fills the sheet almost to the margin; the screen spacing
+     pushed this one line onto a page of its own. */
+  .pr-footer { margin-top: 6px; padding-top: 4px; line-height: 1.2; }
+
   /* Pattern fills and day shading must actually reach the paper. */
   .pr-swatch, .pr-tick, .pr-card-dayrow {
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
