@@ -170,8 +170,8 @@ importers:
   .:
     dependencies:
       app-switcher:
-        specifier: github:digorgonzola/app-switcher#v0.1.2
-        version: https://codeload.github.com/digorgonzola/app-switcher/tar.gz/d9e79db6c5a91af6e9a69f934a157676cce90efe(lucide-react@1.46.0(react@19.2.8))(react@19.2.8)
+        specifier: github:digorgonzola/app-switcher#v0.1.4
+        version: https://codeload.github.com/digorgonzola/app-switcher/tar.gz/534dc589c2e298de56d6fe92cc11f98d76e35977(lucide-react@1.46.0(react@19.2.8))(react@19.2.8)
       jose:
         specifier: 6.2.12
         version: 6.2.12
@@ -934,12 +934,12 @@ packages:
   '@vitest/utils@4.1.12':
     resolution: {integrity: sha512-Q3awXrwOfEV+qc3WmO5ONyE0yO7Q1gQ9/oyHxGLZ/pl7N3NO/ZztqQwKLuwMkV+CA1JYSIeO3gkHnRDIo4AVaA==}
 
-  app-switcher@https://codeload.github.com/digorgonzola/app-switcher/tar.gz/d9e79db6c5a91af6e9a69f934a157676cce90efe:
-    resolution: {gitHosted: true, integrity: sha512-roREvxwcgDwjlVErPdmWJipNEaTDv/79WtfikWY/Bzlo+KV5psHuczfbcMio5IoesZupx5ATgq34H6Y47WGODA==, tarball: https://codeload.github.com/digorgonzola/app-switcher/tar.gz/d9e79db6c5a91af6e9a69f934a157676cce90efe}
-    version: 0.1.2
+  app-switcher@https://codeload.github.com/digorgonzola/app-switcher/tar.gz/534dc589c2e298de56d6fe92cc11f98d76e35977:
+    resolution: {gitHosted: true, integrity: sha512-WXHUyzLFPvgcp55z/8D0RtRcgWmEYLfxsJB8YGgIjbYMReqcN6IuwUyvRyXFFHF2dUbkAyauWzdkGKgR5DXrQg==, tarball: https://codeload.github.com/digorgonzola/app-switcher/tar.gz/534dc589c2e298de56d6fe92cc11f98d76e35977}
+    version: 0.1.4
     engines: {node: '>=22', pnpm: '>=11'}
     peerDependencies:
-      lucide-react: '>=1.0.0'
+      lucide-react: ^1.0.0
       react: ^18.3.0 || ^19.0.0
 
   assertion-error@2.0.1:
@@ -1801,7 +1801,7 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.2.0
 
-  app-switcher@https://codeload.github.com/digorgonzola/app-switcher/tar.gz/d9e79db6c5a91af6e9a69f934a157676cce90efe(lucide-react@1.46.0(react@19.2.8))(react@19.2.8):
+  app-switcher@https://codeload.github.com/digorgonzola/app-switcher/tar.gz/534dc589c2e298de56d6fe92cc11f98d76e35977(lucide-react@1.46.0(react@19.2.8))(react@19.2.8):
     dependencies:
       lucide-react: 1.46.0(react@19.2.8)
       react: 19.2.8

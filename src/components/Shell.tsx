@@ -111,7 +111,7 @@ export function Shell<K extends string>({ items, current, onNavigate, accountKey
             <AppSwitcher current="roster" />
             <a
               className="topbar__account"
-            href="#"
+              href="#"
               aria-label={me ? `Settings for ${accountName(me.email)}` : 'Settings'}
               aria-current={current === accountKey ? 'page' : undefined}
               onClick={(e) => {
