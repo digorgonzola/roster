@@ -112,6 +112,11 @@
       "separateMajorMinor": false,
       "automerge": false,
       "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Take app-switcher releases without the 14-day hold. It is first-party code (digorgonzola/app-switcher) shared by the crunchyapple.xyz apps.",
+      "matchDepNames": ["app-switcher"],
+      "minimumReleaseAge": null
     }
   ]
 }
