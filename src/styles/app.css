@@ -61,6 +61,8 @@ button { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--border);
 }
 
+.topbar__actions { display: flex; align-items: center; gap: var(--space-8); }
+
 /* A 44px target around the 32px avatar. */
 .topbar__account {
   display: inline-grid; place-items: center;
@@ -115,7 +117,7 @@ button { font: inherit; color: inherit; }
   .shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
   .topbar, .tabbar { display: none; }
   .sidebar {
-    position: sticky; top: 0;
+    position: sticky; top: 0; z-index: 10;
     display: flex; flex-direction: column; gap: var(--space-32);
     height: 100vh;
     padding: var(--space-24) var(--space-16);
@@ -135,6 +137,8 @@ button { font: inherit; color: inherit; }
 }
 .nav a:hover { background: var(--surface-hover); color: var(--text-primary); }
 .nav a[aria-current="page"] { background: var(--accent-subtle); color: var(--accent); }
+
+.sidebar__brand { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 
 .sidebar__footer {
   display: flex; align-items: center; gap: var(--space-8);

@@ -1,3 +1,4 @@
+import { AppSwitcher } from 'app-switcher'
 import { CalendarCheck, type LucideIcon, User } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Me } from '../sync/protocol'
@@ -86,7 +87,10 @@ export function Shell<K extends string>({ items, current, onNavigate, accountKey
   return (
     <div className="shell no-print">
       <aside className="sidebar" aria-label="Main">
-        <Wordmark />
+        <div className="sidebar__brand">
+          <Wordmark />
+          <AppSwitcher current="roster" align="start" />
+        </div>
         <nav className="nav">{links('label')}</nav>
         {me && (
           <div className="sidebar__footer">
@@ -103,18 +107,21 @@ export function Shell<K extends string>({ items, current, onNavigate, accountKey
       <div className="shell__body">
         <header className="topbar">
           <Wordmark />
-          <a
-            className="topbar__account"
-            href="#"
-            aria-label={me ? `Settings for ${accountName(me.email)}` : 'Settings'}
-            aria-current={current === accountKey ? 'page' : undefined}
-            onClick={(e) => {
-              e.preventDefault()
-              onNavigate(accountKey)
-            }}
-          >
-            <AccountAvatar me={me} />
-          </a>
+          <div className="topbar__actions">
+            <AppSwitcher current="roster" />
+            <a
+              className="topbar__account"
+              href="#"
+              aria-label={me ? `Settings for ${accountName(me.email)}` : 'Settings'}
+              aria-current={current === accountKey ? 'page' : undefined}
+              onClick={(e) => {
+                e.preventDefault()
+                onNavigate(accountKey)
+              }}
+            >
+              <AccountAvatar me={me} />
+            </a>
+          </div>
         </header>
         <main className="main" id="main">
           {children}
